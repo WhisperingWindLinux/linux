@@ -1541,7 +1541,6 @@ intel_dp_adjust_compliance_config(struct intel_dp *intel_dp,
 		int bpp = 3 * intel_dp->compliance.test_data.bpc;
 
 		limits->pipe.min_bpp = limits->pipe.max_bpp = bpp;
-		pipe_config->dither_force_disable = bpp == 6 * 3;
 
 		drm_dbg_kms(&i915->drm, "Setting pipe_bpp to %d\n", bpp);
 	}

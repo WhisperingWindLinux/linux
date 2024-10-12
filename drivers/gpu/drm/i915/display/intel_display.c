@@ -4746,12 +4746,7 @@ intel_modeset_pipe_config(struct intel_atomic_state *state,
 		return ret;
 	}
 
-	/* Dithering seems to not pass-through bits correctly when it should, so
-	 * only enable it on 6bpc panels and when its not a compliance
-	 * test requesting 6bpc video pattern.
-	 */
-	crtc_state->dither = (crtc_state->pipe_bpp == 6*3) &&
-		!crtc_state->dither_force_disable;
+	crtc_state->dither = false;
 	drm_dbg_kms(&i915->drm,
 		    "[CRTC:%d:%s] hw max bpp: %i, pipe bpp: %i, dithering: %i\n",
 		    crtc->base.base.id, crtc->base.name,
