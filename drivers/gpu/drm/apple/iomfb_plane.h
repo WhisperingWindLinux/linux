@@ -34,12 +34,19 @@
 #define DCP_FORMAT_XF22		fourcc_code('2', '2', 'f', 'x')	// P210 full range 2 plane 10-bit YCbCR
 #define DCP_FORMAT_XF44		fourcc_code('4', '4', 'f', 'x')	// P410 full range 2 plane 10-bit YCbCR
 
+/*
+I don't know if forcing DCP_COLORSPACE_BT709 actually affects anything. 
+It needs to be tested using an HDMI recorder. For now, I'm leaving it as is because 
+it’s easier on my eyes and I don't want to break anything right now. Of course, 
+this is by no means a fix for merging anywhere.
+*/
+// FIXME
 enum dcp_colorspace {
-	DCP_COLORSPACE_BG_SRGB = 2,
-	DCP_COLORSPACE_BT601 = 2,
-	DCP_COLORSPACE_BT709 = 2,
-	DCP_COLORSPACE_BG_BT2020 = 2,
-	DCP_COLORSPACE_NATIVE = 2,
+	DCP_COLORSPACE_BG_SRGB = 2,    // 0
+	DCP_COLORSPACE_BT601 = 2,      // 1
+	DCP_COLORSPACE_BT709 = 2,      // 2
+	DCP_COLORSPACE_BG_BT2020 = 2,  // 9
+	DCP_COLORSPACE_NATIVE = 2,     // 12
 };
 
 enum dcp_xfer_func {

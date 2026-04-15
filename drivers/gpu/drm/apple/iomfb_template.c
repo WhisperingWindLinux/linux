@@ -31,8 +31,6 @@
 #include "trace.h"
 #include "version_utils.h"
 
-#include <linux/debugfs.h>
-
 /* Register defines used in bandwidth setup structure */
 #define REG_DOORBELL_BIT(idx) (2 + (idx))
 
@@ -1380,6 +1378,8 @@ void DCP_FW_NAME(iomfb_flush)(struct apple_dcp *dcp, struct drm_crtc *crtc, stru
 		 * the contained colorimetry information to provide native
 		 * colors.
 		 */
+		// FIXME Test whether this actually affects the image quality.
+		// Don't forget to revert it!
 		/*if (dcp->connector_type == DRM_MODE_CONNECTOR_eDP &&
 		    req->surf[l].base.colorspace == DCP_COLORSPACE_BG_SRGB)*/
 			req->surf[l].base.colorspace = DCP_COLORSPACE_NATIVE;
@@ -1470,6 +1470,7 @@ static void dithering_callback(struct apple_dcp *dcp, void *out, void *cookie)
 {
 	if (!out) {
 		dev_info(dcp->dev, "Dithering command completed with status: unknown\n");
+		return;
 	}
 	int status = *(int *)out;
     dev_info(dcp->dev, "Dithering command completed with status: %d\n", status);
