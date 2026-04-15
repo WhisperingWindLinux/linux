@@ -40,7 +40,6 @@ void intel_dp_test_compute_config(struct intel_dp *intel_dp,
 
 		limits->pipe.min_bpp = bpp;
 		limits->pipe.max_bpp = bpp;
-		pipe_config->dither_force_disable = bpp == 6 * 3;
 
 		drm_dbg_kms(display->drm, "Setting pipe_bpp to %d\n", bpp);
 	}
