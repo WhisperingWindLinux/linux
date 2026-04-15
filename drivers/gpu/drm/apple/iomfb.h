@@ -149,6 +149,7 @@ enum dcpep_method {
 	dcpep_set_power_state,
 	dcpep_first_client_open,
 	dcpep_set_parameter_dcp,
+	dcpep_enable_disable_dithering,
 	dcpep_enable_disable_video_power_savings,
 	dcpep_is_main_display,
 	iomfbep_a131_pmu_service_matched,

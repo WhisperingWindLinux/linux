@@ -35,11 +35,11 @@
 #define DCP_FORMAT_XF44		fourcc_code('4', '4', 'f', 'x')	// P410 full range 2 plane 10-bit YCbCR
 
 enum dcp_colorspace {
-	DCP_COLORSPACE_BG_SRGB = 0,
-	DCP_COLORSPACE_BT601 = 1,
+	DCP_COLORSPACE_BG_SRGB = 2,
+	DCP_COLORSPACE_BT601 = 2,
 	DCP_COLORSPACE_BT709 = 2,
-	DCP_COLORSPACE_BG_BT2020 = 9,
-	DCP_COLORSPACE_NATIVE = 12,
+	DCP_COLORSPACE_BG_BT2020 = 2,
+	DCP_COLORSPACE_NATIVE = 2,
 };
 
 enum dcp_xfer_func {

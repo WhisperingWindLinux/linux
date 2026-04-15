@@ -31,6 +31,8 @@
 #include "trace.h"
 #include "version_utils.h"
 
+#include <linux/debugfs.h>
+
 /* Register defines used in bandwidth setup structure */
 #define REG_DOORBELL_BIT(idx) (2 + (idx))
 
@@ -92,6 +94,11 @@ DCP_THUNK_INOUT(dcp_set_parameter_dcp, dcpep_set_parameter_dcp,
 
 DCP_THUNK_INOUT(dcp_enable_disable_video_power_savings,
 		dcpep_enable_disable_video_power_savings, u32, int);
+
+#if DCP_FW_VER >= DCP_FW_VERSION(13, 2, 0)
+DCP_THUNK_INOUT(dcp_enable_disable_dithering, 
+	dcpep_enable_disable_dithering, u32, int);
+#endif
 
 DCP_THUNK_OUT(dcp_is_main_display, dcpep_is_main_display, u32);
 
@@ -1373,8 +1380,8 @@ void DCP_FW_NAME(iomfb_flush)(struct apple_dcp *dcp, struct drm_crtc *crtc, stru
 		 * the contained colorimetry information to provide native
 		 * colors.
 		 */
-		if (dcp->connector_type == DRM_MODE_CONNECTOR_eDP &&
-		    req->surf[l].base.colorspace == DCP_COLORSPACE_BG_SRGB)
+		/*if (dcp->connector_type == DRM_MODE_CONNECTOR_eDP &&
+		    req->surf[l].base.colorspace == DCP_COLORSPACE_BG_SRGB)*/
 			req->surf[l].base.colorspace = DCP_COLORSPACE_NATIVE;
 	}
 
@@ -1457,8 +1464,31 @@ static void init_2(struct apple_dcp *dcp, void *out, void *cookie)
 	dcp_first_client_open(dcp, false, init_3, NULL);
 }
 
+#if DCP_FW_VER >= DCP_FW_VERSION(13, 2, 0)
+
+static void dithering_callback(struct apple_dcp *dcp, void *out, void *cookie)
+{
+	if (!out) {
+		dev_info(dcp->dev, "Dithering command completed with status: unknown\n");
+	}
+	int status = *(int *)out;
+    dev_info(dcp->dev, "Dithering command completed with status: %d\n", status);
+}
+
+static void disable_dithering(struct apple_dcp *dcp) {
+	u32 val = 0;
+	dev_info(dcp->dev, "Disabling dithering...\n");
+	dcp_enable_disable_dithering(dcp, false, &val, dithering_callback, NULL);
+}
+
+#endif
+
 static void init_1(struct apple_dcp *dcp, void *out, void *cookie)
 {
+	#if DCP_FW_VER >= DCP_FW_VERSION(13, 2, 0)
+	disable_dithering(dcp);
+	#endif
+
 	u32 val = 0;
 	dcp_enable_disable_video_power_savings(dcp, false, &val, init_2, NULL);
 }

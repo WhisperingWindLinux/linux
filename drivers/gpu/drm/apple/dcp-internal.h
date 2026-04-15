@@ -123,7 +123,7 @@ struct apple_dcp {
 	struct apple_connector *connector;
 
 	struct apple_dcp_hw_data hw;
-
+	
 	/* firmware version and compatible firmware version */
 	enum dcp_firmware_version fw_compat;
 
