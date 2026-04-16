@@ -141,9 +141,9 @@ static u32 drm_format_to_dcp(u32 drm, enum drm_color_range range)
 	case DRM_FORMAT_ABGR8888:
 		return DCP_FORMAT_RGBA;
 
-	case DRM_FORMAT_XRGB2101010:
+	/*case DRM_FORMAT_XRGB2101010:
 	case DRM_FORMAT_ARGB2101010:
-		return DCP_FORMAT_L10R;
+		return DCP_FORMAT_L10R;*/
 
 	/* semi planar YCbCr formats, limited and full range */
 	case DRM_FORMAT_NV12:
@@ -154,16 +154,16 @@ static u32 drm_format_to_dcp(u32 drm, enum drm_color_range range)
 		return fr ? DCP_FORMAT_444F : DCP_FORMAT_444V;
 
 	/* semi planar 10-bit YCbCr formats, limited and full range */
-	case DRM_FORMAT_P010:
+	/*case DRM_FORMAT_P010:
 		return fr ? DCP_FORMAT_XF20 : DCP_FORMAT_X420;
 	case DRM_FORMAT_P210:
-		return fr ? DCP_FORMAT_XF22 : DCP_FORMAT_X422;
+		return fr ? DCP_FORMAT_XF22 : DCP_FORMAT_X422;*/
 	/*
 	 * TODO: missing DRM fourcc for P410
 	 */
 #if defined(DRM_FORMAT_P410)
-	case DRM_FORMAT_P410:
-		return fr ? DCP_FORMAT_XF44 : DCP_FORMAT_X444;
+	/*case DRM_FORMAT_P410:
+		return fr ? DCP_FORMAT_XF44 : DCP_FORMAT_X444;*/
 #endif
 	}
 
@@ -231,8 +231,8 @@ static void apple_plane_atomic_update(struct drm_plane *plane,
 	 * workaround for the bottommost plane.
 	 */
 	if (fmt->format == DRM_FORMAT_XRGB8888 ||
-	    fmt->format == DRM_FORMAT_XBGR8888 ||
-	    fmt->format == DRM_FORMAT_XBGR2101010)
+	    fmt->format == DRM_FORMAT_XBGR8888 /*||
+	    fmt->format == DRM_FORMAT_XBGR2101010*/)
 		is_premultiplied = true;
 
 	new_state->src_rect = drm_to_dcp_rect_fp(&base->src);
@@ -364,8 +364,8 @@ static const struct drm_plane_funcs apple_plane_funcs = {
  * advertise formats without alpha.
  */
 static const u32 dcp_primary_formats[] = {
-	DRM_FORMAT_XRGB2101010,
-	DRM_FORMAT_ARGB2101010,
+	//DRM_FORMAT_XRGB2101010,
+	//DRM_FORMAT_ARGB2101010,
 	DRM_FORMAT_XRGB8888,
 	DRM_FORMAT_ARGB8888,
 	DRM_FORMAT_XBGR8888,
@@ -381,7 +381,7 @@ static const u32 dcp_primary_formats[] = {
 };
 
 static const u32 dcp_overlay_formats[] = {
-	DRM_FORMAT_ARGB2101010,
+	//DRM_FORMAT_ARGB2101010,
 	DRM_FORMAT_ARGB8888,
 	DRM_FORMAT_ABGR8888,
 	DRM_FORMAT_NV12,

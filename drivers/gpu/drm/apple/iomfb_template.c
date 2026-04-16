@@ -1203,6 +1203,38 @@ int DCP_FW_NAME(iomfb_modeset)(struct apple_dcp *dcp,
 	struct dcp_color_mode *cmode = NULL;
 	int ret;
 
+	for (int i = 0; i < dcp->nr_modes; i++) {
+		struct dcp_display_mode *m = &dcp->modes[i];
+
+		dev_err(dcp->dev, "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=");
+		
+		dev_err(dcp->dev, 
+			"Mode[%d]: %dx%d@%d color_mode_id=%u timing_mode_id=%u vrr=%d\n",
+			i,
+			m->mode.hdisplay, m->mode.vdisplay, drm_mode_vrefresh(&m->mode),
+			m->color_mode_id, m->timing_mode_id, m->vrr);
+		
+		dev_err(dcp->dev,
+			"  sdr_rgb: id=%u depth=%u format=%u colorimetry=%u eotf=%u range=%u score=%lld\n",
+			m->sdr_rgb.id, m->sdr_rgb.depth, m->sdr_rgb.format,
+			m->sdr_rgb.colorimetry, m->sdr_rgb.eotf, m->sdr_rgb.range, m->sdr_rgb.score);
+		
+		dev_err(dcp->dev,
+			"  sdr_444: id=%u depth=%u format=%u colorimetry=%u eotf=%u range=%u score=%lld\n",
+			m->sdr_444.id, m->sdr_444.depth, m->sdr_444.format,
+			m->sdr_444.colorimetry, m->sdr_444.eotf, m->sdr_444.range, m->sdr_444.score);
+		
+		dev_err(dcp->dev,
+			"  sdr:     id=%u depth=%u format=%u colorimetry=%u eotf=%u range=%u score=%lld\n",
+			m->sdr.id, m->sdr.depth, m->sdr.format,
+			m->sdr.colorimetry, m->sdr.eotf, m->sdr.range, m->sdr.score);
+		
+		dev_err(dcp->dev,
+			"  best:    id=%u depth=%u format=%u colorimetry=%u eotf=%u range=%u score=%lld\n",
+			m->best.id, m->best.depth, m->best.format,
+			m->best.colorimetry, m->best.eotf, m->best.range, m->best.score);
+	}
+
 	mode = lookup_mode(dcp, &crtc_state->mode);
 	if (!mode) {
 		dev_err(dcp->dev, "no match for " DRM_MODE_FMT "\n",
@@ -1378,11 +1410,10 @@ void DCP_FW_NAME(iomfb_flush)(struct apple_dcp *dcp, struct drm_crtc *crtc, stru
 		 * the contained colorimetry information to provide native
 		 * colors.
 		 */
-		// FIXME Test whether this actually affects the image quality.
-		// Don't forget to revert it!
-		/*if (dcp->connector_type == DRM_MODE_CONNECTOR_eDP &&
-		    req->surf[l].base.colorspace == DCP_COLORSPACE_BG_SRGB)*/
+		if (dcp->connector_type == DRM_MODE_CONNECTOR_eDP &&
+		    req->surf[l].base.colorspace == DCP_COLORSPACE_BG_SRGB) {
 			req->surf[l].base.colorspace = DCP_COLORSPACE_NATIVE;
+		}
 	}
 
 	if (!has_surface && !crtc_state->color_mgmt_changed) {

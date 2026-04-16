@@ -504,9 +504,9 @@ void dcp_link(struct platform_device *pdev, struct apple_crtc *crtc,
 
 bool dcp_fw_compat_is_12_x(struct platform_device *pdev)
 {
-	struct apple_dcp *dcp = platform_get_drvdata(pdev);
-
-	return dcp->fw_compat == DCP_FIRMWARE_V_12_3;
+	//struct apple_dcp *dcp = platform_get_drvdata(pdev);
+	//return dcp->fw_compat == DCP_FIRMWARE_V_12_3;
+	return true;
 }
 
 int dcp_start(struct platform_device *pdev)

@@ -16,8 +16,8 @@
 #define DCP_FORMAT_BGRA		fourcc_code('A', 'R', 'G', 'B')
 #define DCP_FORMAT_RGBA		fourcc_code('A', 'B', 'G', 'R')
 
-#define DCP_FORMAT_W30R		fourcc_code('r', '0', '3', 'w')	// wide gamut packed 10-bit RGB without alpha
-#define DCP_FORMAT_L10R		fourcc_code('r', '0', '1', 'l')	// full range packed 10-bit RGB with alpha
+//#define DCP_FORMAT_W30R		fourcc_code('r', '0', '3', 'w')	// wide gamut packed 10-bit RGB without alpha
+//#define DCP_FORMAT_L10R		fourcc_code('r', '0', '1', 'l')	// full range packed 10-bit RGB with alpha
 
 #define DCP_FORMAT_420V		fourcc_code('v', '0', '2', '4')	// NV12 video range 2 plane 8-bit YCbCr
 #define DCP_FORMAT_420F		fourcc_code('f', '0', '2', '4')	// NV12 full range 2 plane 8-bit YCbCr
@@ -26,27 +26,20 @@
 #define DCP_FORMAT_444V		fourcc_code('v', '4', '4', '4')	// NV24 video range 2 plane 8-bit YCbCr
 #define DCP_FORMAT_444F		fourcc_code('f', '4', '4', '4')	// NV24 full range 2 plane 8-bit YCbCr
 
-#define DCP_FORMAT_X420		fourcc_code('0', '2', '4', 'x')	// P010 video range 2 plane 10-bit YCbCR
+/*#define DCP_FORMAT_X420		fourcc_code('0', '2', '4', 'x')	// P010 video range 2 plane 10-bit YCbCR
 #define DCP_FORMAT_X422		fourcc_code('2', '2', '4', 'x')	// P210 video range 2 plane 10-bit YCbCR
 #define DCP_FORMAT_X444		fourcc_code('4', '4', '4', 'x')	// P410 video range 2 plane 10-bit YCbCR
 
 #define DCP_FORMAT_XF20		fourcc_code('0', '2', 'f', 'x')	// P010 full range 2 plane 10-bit YCbCR
 #define DCP_FORMAT_XF22		fourcc_code('2', '2', 'f', 'x')	// P210 full range 2 plane 10-bit YCbCR
-#define DCP_FORMAT_XF44		fourcc_code('4', '4', 'f', 'x')	// P410 full range 2 plane 10-bit YCbCR
+#define DCP_FORMAT_XF44		fourcc_code('4', '4', 'f', 'x')	// P410 full range 2 plane 10-bit YCbCR*/
 
-/*
-I don't know if forcing DCP_COLORSPACE_BT709 actually affects anything. 
-It needs to be tested using an HDMI recorder. For now, I'm leaving it as is because 
-it’s easier on my eyes and I don't want to break anything right now. Of course, 
-this is by no means a fix for merging anywhere.
-*/
-// FIXME
 enum dcp_colorspace {
-	DCP_COLORSPACE_BG_SRGB = 2,    // 0
-	DCP_COLORSPACE_BT601 = 2,      // 1
-	DCP_COLORSPACE_BT709 = 2,      // 2
-	DCP_COLORSPACE_BG_BT2020 = 2,  // 9
-	DCP_COLORSPACE_NATIVE = 2,     // 12
+	DCP_COLORSPACE_BG_SRGB = 0,    
+	DCP_COLORSPACE_BT601 = 1,      
+	DCP_COLORSPACE_BT709 = 2,      
+	DCP_COLORSPACE_BG_BT2020 = 9,  
+	DCP_COLORSPACE_NATIVE = 12, 
 };
 
 enum dcp_xfer_func {
