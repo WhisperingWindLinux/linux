@@ -131,78 +131,29 @@ static struct dcp_rect drm_to_dcp_rect_fp(const struct drm_rect *fp_rect)
 
 static u32 drm_format_to_dcp(u32 drm, enum drm_color_range range)
 {
-	bool fr = range == DRM_COLOR_YCBCR_FULL_RANGE;
 	switch (drm) {
-	case DRM_FORMAT_XRGB8888:
-	case DRM_FORMAT_ARGB8888:
-		return DCP_FORMAT_BGRA;
+		case DRM_FORMAT_XRGB8888:
+		case DRM_FORMAT_ARGB8888:
+			return DCP_FORMAT_BGRA;
 
-	case DRM_FORMAT_XBGR8888:
-	case DRM_FORMAT_ABGR8888:
-		return DCP_FORMAT_RGBA;
-
-	/*case DRM_FORMAT_XRGB2101010:
-	case DRM_FORMAT_ARGB2101010:
-		return DCP_FORMAT_L10R;*/
-
-	/* semi planar YCbCr formats, limited and full range */
-	case DRM_FORMAT_NV12:
-		return fr ? DCP_FORMAT_420F : DCP_FORMAT_420V;
-	case DRM_FORMAT_NV16:
-		return fr ? DCP_FORMAT_422F : DCP_FORMAT_422V;
-	case DRM_FORMAT_NV24:
-		return fr ? DCP_FORMAT_444F : DCP_FORMAT_444V;
-
-	/* semi planar 10-bit YCbCr formats, limited and full range */
-	/*case DRM_FORMAT_P010:
-		return fr ? DCP_FORMAT_XF20 : DCP_FORMAT_X420;
-	case DRM_FORMAT_P210:
-		return fr ? DCP_FORMAT_XF22 : DCP_FORMAT_X422;*/
-	/*
-	 * TODO: missing DRM fourcc for P410
-	 */
-#if defined(DRM_FORMAT_P410)
-	/*case DRM_FORMAT_P410:
-		return fr ? DCP_FORMAT_XF44 : DCP_FORMAT_X444;*/
-#endif
+		case DRM_FORMAT_XBGR8888:
+		case DRM_FORMAT_ABGR8888:
+			return DCP_FORMAT_RGBA;
 	}
 
-	pr_warn("DRM format %X not supported in DCP\n", drm);
-	return 0;
+	pr_warn("DCP_BVD_FIX: Unsupported format %X, forcing 8-bit BGRA\n", drm);
+	return DCP_FORMAT_BGRA;
 }
 
 static enum dcp_xfer_func get_xfer_func(bool is_yuv, enum drm_color_encoding enc)
 {
-	if (!is_yuv)
-		return DCP_XFER_FUNC_SDR;
-
-	switch (enc) {
-	case DRM_COLOR_YCBCR_BT601:
-		return DCP_XFER_FUNC_BT601;
-	case DRM_COLOR_YCBCR_BT709:
-	case DRM_COLOR_YCBCR_BT2020:
-		return DCP_XFER_FUNC_BT1886;
-	default:
-		return DCP_XFER_FUNC_SDR;
-	}
+	return DCP_XFER_FUNC_SDR;
 }
 
 static enum dcp_colorspace get_colorspace(bool is_yuv,
 					  enum drm_color_encoding enc)
 {
-	if (!is_yuv)
-		return DCP_COLORSPACE_NATIVE;
-
-	switch (enc) {
-	case DRM_COLOR_YCBCR_BT601:
-		return DCP_COLORSPACE_BT601;
-	case DRM_COLOR_YCBCR_BT709:
-		return DCP_COLORSPACE_BT709;
-	case DRM_COLOR_YCBCR_BT2020:
-		return DCP_COLORSPACE_BG_BT2020;
-	default:
-		return DCP_COLORSPACE_NATIVE;
-	}
+	return DCP_COLORSPACE_BG_SRGB;
 }
 
 static void apple_plane_atomic_update(struct drm_plane *plane,
@@ -231,8 +182,7 @@ static void apple_plane_atomic_update(struct drm_plane *plane,
 	 * workaround for the bottommost plane.
 	 */
 	if (fmt->format == DRM_FORMAT_XRGB8888 ||
-	    fmt->format == DRM_FORMAT_XBGR8888 /*||
-	    fmt->format == DRM_FORMAT_XBGR2101010*/)
+	    fmt->format == DRM_FORMAT_XBGR8888)
 		is_premultiplied = true;
 
 	new_state->src_rect = drm_to_dcp_rect_fp(&base->src);
@@ -363,9 +313,7 @@ static const struct drm_plane_funcs apple_plane_funcs = {
  * doesn't matter for the primary plane, but cursors/overlays must not
  * advertise formats without alpha.
  */
-static const u32 dcp_primary_formats[] = {
-	//DRM_FORMAT_XRGB2101010,
-	//DRM_FORMAT_ARGB2101010,
+/*static const u32 dcp_primary_formats[] = {
 	DRM_FORMAT_XRGB8888,
 	DRM_FORMAT_ARGB8888,
 	DRM_FORMAT_XBGR8888,
@@ -373,26 +321,15 @@ static const u32 dcp_primary_formats[] = {
 	DRM_FORMAT_NV12,
 	DRM_FORMAT_NV16,
 	DRM_FORMAT_NV24,
-	DRM_FORMAT_P010,
-	DRM_FORMAT_P210,
-#if defined(DRM_FORMAT_P410)
-	DRM_FORMAT_P410,
-#endif
-};
+};*/
 
-static const u32 dcp_overlay_formats[] = {
-	//DRM_FORMAT_ARGB2101010,
+/*static const u32 dcp_overlay_formats[] = {
 	DRM_FORMAT_ARGB8888,
 	DRM_FORMAT_ABGR8888,
 	DRM_FORMAT_NV12,
 	DRM_FORMAT_NV16,
 	DRM_FORMAT_NV24,
-	DRM_FORMAT_P010,
-	DRM_FORMAT_P210,
-#if defined(DRM_FORMAT_P410)
-	DRM_FORMAT_P410,
-#endif
-};
+};*/
 
 /*
  * Formats for the 12.x firmware which does not support "l10r" / ARGB2101010
@@ -405,11 +342,6 @@ static const u32 dcp_primary_formats_12_x[] = {
 	DRM_FORMAT_NV12,
 	DRM_FORMAT_NV16,
 	DRM_FORMAT_NV24,
-	DRM_FORMAT_P010,
-	DRM_FORMAT_P210,
-#if defined(DRM_FORMAT_P410)
-	DRM_FORMAT_P410,
-#endif
 };
 
 static const u32 dcp_overlay_formats_12_x[] = {
@@ -418,11 +350,6 @@ static const u32 dcp_overlay_formats_12_x[] = {
 	DRM_FORMAT_NV12,
 	DRM_FORMAT_NV16,
 	DRM_FORMAT_NV24,
-	DRM_FORMAT_P010,
-	DRM_FORMAT_P210,
-#if defined(DRM_FORMAT_P410)
-	DRM_FORMAT_P410,
-#endif
 };
 
 u64 apple_format_modifiers[] = {
@@ -445,26 +372,23 @@ struct drm_plane *apple_plane_init(struct drm_device *dev,
 
 	switch (type) {
 	case DRM_PLANE_TYPE_PRIMARY:
-		if (supports_l10r) {
-			fmts = dcp_primary_formats;
-			num_fmts = ARRAY_SIZE(dcp_primary_formats);
-		} else {
-			fmts = dcp_primary_formats_12_x;
-			num_fmts = ARRAY_SIZE(dcp_primary_formats_12_x);
-		}
+		/* 
+		 * BVD Fix: Ignore 10-bit support (supports_l10r) and force 8-bit 12_x formats.
+		 * This prevents the compositor from even seeing 10-bit options.
+		 */
+		fmts = dcp_primary_formats_12_x;
+		num_fmts = ARRAY_SIZE(dcp_primary_formats_12_x);
+
 		plane = drmm_universal_plane_alloc(dev, struct apple_plane, base, possible_crtcs,
 				       &apple_plane_funcs, fmts, num_fmts,
 				       apple_format_modifiers, type, NULL);
 		break;
 	case DRM_PLANE_TYPE_OVERLAY:
 	case DRM_PLANE_TYPE_CURSOR:
-		if (supports_l10r) {
-			fmts = dcp_overlay_formats;
-			num_fmts = ARRAY_SIZE(dcp_overlay_formats);
-		} else {
-			fmts = dcp_overlay_formats_12_x;
-			num_fmts = ARRAY_SIZE(dcp_overlay_formats_12_x);
-		}
+		/* BVD Fix: Force 8-bit overlay formats to ensure no 10-bit buffers are allocated */
+		fmts = dcp_overlay_formats_12_x;
+		num_fmts = ARRAY_SIZE(dcp_overlay_formats_12_x);
+
 		plane = drmm_universal_plane_alloc(dev, struct apple_plane, base, possible_crtcs,
 				       &apple_plane_funcs, fmts, num_fmts,
 				       apple_format_modifiers, type, NULL);
@@ -476,11 +400,16 @@ struct drm_plane *apple_plane_init(struct drm_device *dev,
 	if (IS_ERR(plane))
 		return ERR_PTR(PTR_ERR(plane));
 
+	/* 
+	 * BVD Fix: Force FULL_RANGE. 
+	 * LIMITED_RANGE requires compression (0-255 -> 16-235), which triggers 
+	 * DCP's internal dithering/FRC to hide rounding artifacts.
+	 */
 	drm_plane_create_color_properties(&plane->base,
 					  (1 << DRM_COLOR_ENCODING_MAX) - 1,
 					  (1 << DRM_COLOR_RANGE_MAX) - 1,
 					  DRM_COLOR_YCBCR_BT709,
-					  DRM_COLOR_YCBCR_LIMITED_RANGE);
+					  DRM_COLOR_YCBCR_FULL_RANGE);
 
 	if (type == DRM_PLANE_TYPE_PRIMARY)
 		drm_plane_helper_add(&plane->base, &apple_primary_plane_helper_funcs);

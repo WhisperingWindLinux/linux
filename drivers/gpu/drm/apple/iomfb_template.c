@@ -93,11 +93,6 @@ DCP_THUNK_INOUT(dcp_set_parameter_dcp, dcpep_set_parameter_dcp,
 DCP_THUNK_INOUT(dcp_enable_disable_video_power_savings,
 		dcpep_enable_disable_video_power_savings, u32, int);
 
-#if DCP_FW_VER >= DCP_FW_VERSION(13, 2, 0)
-DCP_THUNK_INOUT(dcp_enable_disable_dithering, 
-	dcpep_enable_disable_dithering, u32, int);
-#endif
-
 DCP_THUNK_OUT(dcp_is_main_display, dcpep_is_main_display, u32);
 
 /* DCP callback handlers */
@@ -121,6 +116,28 @@ static u32 dcpep_cb_zero(struct apple_dcp *dcp)
 	return 0;
 }
 
+#if DCP_FW_VER >= DCP_FW_VERSION(13, 2, 0)
+
+DCP_THUNK_INOUT(dcp_enable_disable_dithering, 
+	dcpep_enable_disable_dithering, u32, int);
+
+static void dithering_callback(struct apple_dcp *dcp, void *out, void *cookie) {
+	if (!out) {
+		dev_info(dcp->dev, "Dithering command completed with status: unknown\n");
+	} else {
+		int status = *(int *)out;
+    	dev_info(dcp->dev, "Dithering command completed with status: %d\n", status);
+	}
+}
+
+static void disable_dithering(struct apple_dcp *dcp) {
+	u32 val = 0;
+	dev_info(dcp->dev, "Disabling dithering...\n");
+	dcp_enable_disable_dithering(dcp, false, &val, dithering_callback, NULL);
+}
+
+#endif
+
 static void dcpep_cb_swap_complete(struct apple_dcp *dcp,
 				   struct DCP_FW_NAME(dc_swap_complete_resp) *resp)
 {
@@ -128,11 +145,23 @@ static void dcpep_cb_swap_complete(struct apple_dcp *dcp,
 	trace_iomfb_swap_complete(dcp, resp->swap_id);
 	dcp->last_swap_id = resp->swap_id;
 
-	dcp_drm_crtc_page_flip(dcp, now);
+	dcp_drm_crtc_page_flip(dcp, now);	
 	if (dcp->crc_enabled) {
 		u32 crc32 = 0;
 		drm_crtc_add_crc_entry(&dcp->crtc->base, true, resp->swap_id, &crc32);
 	}
+
+	#if DCP_FW_VER >= DCP_FW_VERSION(13, 2, 0)
+
+	if (!dcp->dithering_scheduled) {
+		if (dcp->swap_counter < 100) {
+			dcp->swap_counter++;
+		} else {
+			dcp->dithering_scheduled = true;
+			disable_dithering(dcp);
+		}
+    } 
+	#endif
 }
 
 /* special */
@@ -1405,15 +1434,9 @@ void DCP_FW_NAME(iomfb_flush)(struct apple_dcp *dcp, struct drm_crtc *crtc, stru
 		req->surf_iova[l] = apple_state->iova;
 		req->surf[l].base = apple_state->surf;
 
-		/* Use sRGB colorspace only for internal panels. External
-		 * displays are expected to have EDID and user space can use
-		 * the contained colorimetry information to provide native
-		 * colors.
-		 */
-		if (dcp->connector_type == DRM_MODE_CONNECTOR_eDP &&
-		    req->surf[l].base.colorspace == DCP_COLORSPACE_BG_SRGB) {
-			req->surf[l].base.colorspace = DCP_COLORSPACE_NATIVE;
-		}
+	    /* Force sRGB Passthrough for all surfaces to keep the pipeline clean */
+		req->surf[l].base.colorspace = DCP_COLORSPACE_BG_SRGB;
+		req->surf[l].base.xfer_func = DCP_XFER_FUNC_SDR;
 	}
 
 	if (!has_surface && !crtc_state->color_mgmt_changed) {
@@ -1495,31 +1518,14 @@ static void init_2(struct apple_dcp *dcp, void *out, void *cookie)
 	dcp_first_client_open(dcp, false, init_3, NULL);
 }
 
-#if DCP_FW_VER >= DCP_FW_VERSION(13, 2, 0)
-
-static void dithering_callback(struct apple_dcp *dcp, void *out, void *cookie)
-{
-	if (!out) {
-		dev_info(dcp->dev, "Dithering command completed with status: unknown\n");
-		return;
-	}
-	int status = *(int *)out;
-    dev_info(dcp->dev, "Dithering command completed with status: %d\n", status);
-}
-
-static void disable_dithering(struct apple_dcp *dcp) {
-	u32 val = 0;
-	dev_info(dcp->dev, "Disabling dithering...\n");
-	dcp_enable_disable_dithering(dcp, false, &val, dithering_callback, NULL);
-}
-
-#endif
-
 static void init_1(struct apple_dcp *dcp, void *out, void *cookie)
 {
-	#if DCP_FW_VER >= DCP_FW_VERSION(13, 2, 0)
-	disable_dithering(dcp);
-	#endif
+	if (!out) {
+		dev_info(dcp->dev, "iomfb_get_color_remap_mode command completed with status: unknown\n");
+	} else {
+		int status = *(int *)out;
+    	dev_info(dcp->dev, "iomfb_get_color_remap_mode command completed with status: %d\n", status);
+	}
 
 	u32 val = 0;
 	dcp_enable_disable_video_power_savings(dcp, false, &val, init_2, NULL);
@@ -1529,7 +1535,7 @@ static void dcp_started(struct apple_dcp *dcp, void *data, void *cookie)
 {
 	struct iomfb_get_color_remap_mode_req color_remap =
 		(struct iomfb_get_color_remap_mode_req){
-			.mode = 6,
+			.mode = 6, 
 		};
 
 	dev_info(dcp->dev, "DCP booted\n");

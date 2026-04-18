@@ -133,6 +133,9 @@ struct apple_dcp {
 	/* DCP has crashed */
 	bool crashed;
 
+	bool dithering_scheduled;
+	int swap_counter;
+
 	/************* IOMFB **************************************************
 	 * everything below is mostly used inside IOMFB but it could make     *
 	 * sense to keep some of the members in apple_dcp.                    *
