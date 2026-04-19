@@ -95,6 +95,9 @@ DCP_THUNK_INOUT(dcp_enable_disable_video_power_savings,
 
 DCP_THUNK_OUT(dcp_is_main_display, dcpep_is_main_display, u32);
 
+DCP_THUNK_INOUT(dcp_apply_property, dcpep_apply_property,
+	struct dcp_apply_property_req, u32);
+
 /* DCP callback handlers */
 static void dcpep_cb_nop(struct apple_dcp *dcp)
 {
@@ -116,28 +119,6 @@ static u32 dcpep_cb_zero(struct apple_dcp *dcp)
 	return 0;
 }
 
-#if DCP_FW_VER >= DCP_FW_VERSION(13, 2, 0)
-
-DCP_THUNK_INOUT(dcp_enable_disable_dithering, 
-	dcpep_enable_disable_dithering, u32, int);
-
-static void dithering_callback(struct apple_dcp *dcp, void *out, void *cookie) {
-	if (!out) {
-		dev_info(dcp->dev, "Dithering command completed with status: unknown\n");
-	} else {
-		int status = *(int *)out;
-    	dev_info(dcp->dev, "Dithering command completed with status: %d\n", status);
-	}
-}
-
-static void disable_dithering(struct apple_dcp *dcp) {
-	u32 val = 0;
-	dev_info(dcp->dev, "Disabling dithering...\n");
-	dcp_enable_disable_dithering(dcp, false, &val, dithering_callback, NULL);
-}
-
-#endif
-
 static void dcpep_cb_swap_complete(struct apple_dcp *dcp,
 				   struct DCP_FW_NAME(dc_swap_complete_resp) *resp)
 {
@@ -145,23 +126,11 @@ static void dcpep_cb_swap_complete(struct apple_dcp *dcp,
 	trace_iomfb_swap_complete(dcp, resp->swap_id);
 	dcp->last_swap_id = resp->swap_id;
 
-	dcp_drm_crtc_page_flip(dcp, now);	
+	dcp_drm_crtc_page_flip(dcp, now);
 	if (dcp->crc_enabled) {
 		u32 crc32 = 0;
 		drm_crtc_add_crc_entry(&dcp->crtc->base, true, resp->swap_id, &crc32);
 	}
-
-	#if DCP_FW_VER >= DCP_FW_VERSION(13, 2, 0)
-
-	if (!dcp->dithering_scheduled) {
-		if (dcp->swap_counter < 100) {
-			dcp->swap_counter++;
-		} else {
-			dcp->dithering_scheduled = true;
-			disable_dithering(dcp);
-		}
-    } 
-	#endif
 }
 
 /* special */
@@ -1213,6 +1182,18 @@ static void do_swap(struct apple_dcp *dcp, void *data, void *cookie)
 		dcp_drm_crtc_vblank(dcp->crtc);
 }
 
+static void apply_property_callback(struct apple_dcp *dcp, void *out, void *cookie) {
+	if (!out) {
+		dev_info(dcp->dev, "Dithering disable command completed with status: unknown (main_display=%d)\n",
+				 dcp->main_display);
+	} else {
+		int status = *(int *)out;
+		dev_info(dcp->dev, "Dithering disable command completed with status: %d (main_display=%d)\n",
+				 status, dcp->main_display);
+	}
+	do_swap(dcp, out, cookie);
+}
+
 static void complete_set_digital_out_mode(struct apple_dcp *dcp, void *data,
 					  void *cookie)
 {
@@ -1221,6 +1202,16 @@ static void complete_set_digital_out_mode(struct apple_dcp *dcp, void *data,
 	if (wait) {
 		complete(&wait->done);
 		kref_put(&wait->refcount, release_wait_cookie);
+	}
+
+	if (!dcp->dither_request_sent) {
+		dcp->dither_request_sent = true;
+
+		struct dcp_apply_property_req req = {
+			.prop_id = 21, // iofmb_RuntimeProperty_enableDither
+			.value = 0     // 0 - disable, 1 - enable
+		};
+		dcp_apply_property(dcp, false, &req, apply_property_callback, NULL);
 	}
 }
 
@@ -1231,38 +1222,6 @@ int DCP_FW_NAME(iomfb_modeset)(struct apple_dcp *dcp,
 	struct dcp_wait_cookie *cookie;
 	struct dcp_color_mode *cmode = NULL;
 	int ret;
-
-	for (int i = 0; i < dcp->nr_modes; i++) {
-		struct dcp_display_mode *m = &dcp->modes[i];
-
-		dev_err(dcp->dev, "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=");
-		
-		dev_err(dcp->dev, 
-			"Mode[%d]: %dx%d@%d color_mode_id=%u timing_mode_id=%u vrr=%d\n",
-			i,
-			m->mode.hdisplay, m->mode.vdisplay, drm_mode_vrefresh(&m->mode),
-			m->color_mode_id, m->timing_mode_id, m->vrr);
-		
-		dev_err(dcp->dev,
-			"  sdr_rgb: id=%u depth=%u format=%u colorimetry=%u eotf=%u range=%u score=%lld\n",
-			m->sdr_rgb.id, m->sdr_rgb.depth, m->sdr_rgb.format,
-			m->sdr_rgb.colorimetry, m->sdr_rgb.eotf, m->sdr_rgb.range, m->sdr_rgb.score);
-		
-		dev_err(dcp->dev,
-			"  sdr_444: id=%u depth=%u format=%u colorimetry=%u eotf=%u range=%u score=%lld\n",
-			m->sdr_444.id, m->sdr_444.depth, m->sdr_444.format,
-			m->sdr_444.colorimetry, m->sdr_444.eotf, m->sdr_444.range, m->sdr_444.score);
-		
-		dev_err(dcp->dev,
-			"  sdr:     id=%u depth=%u format=%u colorimetry=%u eotf=%u range=%u score=%lld\n",
-			m->sdr.id, m->sdr.depth, m->sdr.format,
-			m->sdr.colorimetry, m->sdr.eotf, m->sdr.range, m->sdr.score);
-		
-		dev_err(dcp->dev,
-			"  best:    id=%u depth=%u format=%u colorimetry=%u eotf=%u range=%u score=%lld\n",
-			m->best.id, m->best.depth, m->best.format,
-			m->best.colorimetry, m->best.eotf, m->best.range, m->best.score);
-	}
 
 	mode = lookup_mode(dcp, &crtc_state->mode);
 	if (!mode) {
@@ -1434,7 +1393,6 @@ void DCP_FW_NAME(iomfb_flush)(struct apple_dcp *dcp, struct drm_crtc *crtc, stru
 		req->surf_iova[l] = apple_state->iova;
 		req->surf[l].base = apple_state->surf;
 
-	    /* Force sRGB Passthrough for all surfaces to keep the pipeline clean */
 		req->surf[l].base.colorspace = DCP_COLORSPACE_BG_SRGB;
 		req->surf[l].base.xfer_func = DCP_XFER_FUNC_SDR;
 	}
@@ -1477,17 +1435,16 @@ void DCP_FW_NAME(iomfb_flush)(struct apple_dcp *dcp, struct drm_crtc *crtc, stru
 		struct iomfb_set_matrix_req mat = {
 			.location = 9,
 		};
-
 		if (crtc_state->ctm) {
 			struct drm_color_ctm *ctm = (struct drm_color_ctm *)crtc_state->ctm->data;
 			memcpy(mat.matrix, ctm->matrix, sizeof(mat.matrix));
 		} else {
 			mat.matrix[0] = mat.matrix[4] = mat.matrix[8] = 1LLU << 32;
 		}
-
 		iomfb_set_matrix(dcp, false, &mat, do_swap, NULL);
-	} else
+	} else {
 		do_swap(dcp, NULL, NULL);
+	}
 }
 
 static void res_is_main_display(struct apple_dcp *dcp, void *out, void *cookie)
@@ -1520,13 +1477,6 @@ static void init_2(struct apple_dcp *dcp, void *out, void *cookie)
 
 static void init_1(struct apple_dcp *dcp, void *out, void *cookie)
 {
-	if (!out) {
-		dev_info(dcp->dev, "iomfb_get_color_remap_mode command completed with status: unknown\n");
-	} else {
-		int status = *(int *)out;
-    	dev_info(dcp->dev, "iomfb_get_color_remap_mode command completed with status: %d\n", status);
-	}
-
 	u32 val = 0;
 	dcp_enable_disable_video_power_savings(dcp, false, &val, init_2, NULL);
 }
@@ -1534,8 +1484,13 @@ static void init_1(struct apple_dcp *dcp, void *out, void *cookie)
 static void dcp_started(struct apple_dcp *dcp, void *data, void *cookie)
 {
 	struct iomfb_get_color_remap_mode_req color_remap =
-		(struct iomfb_get_color_remap_mode_req){
-			.mode = 6, 
+		(struct iomfb_get_color_remap_mode_req) {
+			/*
+			It is assumed that 0 enables pipeline pass-through mode.
+			Verification is required.
+			Previous value: 6.
+			*/
+			.mode = 6,
 		};
 
 	dev_info(dcp->dev, "DCP booted\n");

@@ -313,7 +313,7 @@ static const struct drm_plane_funcs apple_plane_funcs = {
  * doesn't matter for the primary plane, but cursors/overlays must not
  * advertise formats without alpha.
  */
-/*static const u32 dcp_primary_formats[] = {
+static const u32 dcp_primary_formats[] = {
 	DRM_FORMAT_XRGB8888,
 	DRM_FORMAT_ARGB8888,
 	DRM_FORMAT_XBGR8888,
@@ -321,15 +321,15 @@ static const struct drm_plane_funcs apple_plane_funcs = {
 	DRM_FORMAT_NV12,
 	DRM_FORMAT_NV16,
 	DRM_FORMAT_NV24,
-};*/
+};
 
-/*static const u32 dcp_overlay_formats[] = {
+static const u32 dcp_overlay_formats[] = {
 	DRM_FORMAT_ARGB8888,
 	DRM_FORMAT_ABGR8888,
 	DRM_FORMAT_NV12,
 	DRM_FORMAT_NV16,
 	DRM_FORMAT_NV24,
-};*/
+};
 
 /*
  * Formats for the 12.x firmware which does not support "l10r" / ARGB2101010
@@ -361,6 +361,7 @@ struct apple_plane {
 	struct drm_plane base;
 };
 
+
 struct drm_plane *apple_plane_init(struct drm_device *dev,
 				   unsigned long possible_crtcs,
 				   bool supports_l10r,
@@ -372,23 +373,26 @@ struct drm_plane *apple_plane_init(struct drm_device *dev,
 
 	switch (type) {
 	case DRM_PLANE_TYPE_PRIMARY:
-		/* 
-		 * BVD Fix: Ignore 10-bit support (supports_l10r) and force 8-bit 12_x formats.
-		 * This prevents the compositor from even seeing 10-bit options.
-		 */
-		fmts = dcp_primary_formats_12_x;
-		num_fmts = ARRAY_SIZE(dcp_primary_formats_12_x);
-
+		if (supports_l10r) {
+			fmts = dcp_primary_formats;
+			num_fmts = ARRAY_SIZE(dcp_primary_formats);
+		} else {
+			fmts = dcp_primary_formats_12_x;
+			num_fmts = ARRAY_SIZE(dcp_primary_formats_12_x);
+		}
 		plane = drmm_universal_plane_alloc(dev, struct apple_plane, base, possible_crtcs,
 				       &apple_plane_funcs, fmts, num_fmts,
 				       apple_format_modifiers, type, NULL);
 		break;
 	case DRM_PLANE_TYPE_OVERLAY:
 	case DRM_PLANE_TYPE_CURSOR:
-		/* BVD Fix: Force 8-bit overlay formats to ensure no 10-bit buffers are allocated */
-		fmts = dcp_overlay_formats_12_x;
-		num_fmts = ARRAY_SIZE(dcp_overlay_formats_12_x);
-
+		if (supports_l10r) {
+			fmts = dcp_overlay_formats;
+			num_fmts = ARRAY_SIZE(dcp_overlay_formats);
+		} else {
+			fmts = dcp_overlay_formats_12_x;
+			num_fmts = ARRAY_SIZE(dcp_overlay_formats_12_x);
+		}
 		plane = drmm_universal_plane_alloc(dev, struct apple_plane, base, possible_crtcs,
 				       &apple_plane_funcs, fmts, num_fmts,
 				       apple_format_modifiers, type, NULL);
@@ -400,11 +404,6 @@ struct drm_plane *apple_plane_init(struct drm_device *dev,
 	if (IS_ERR(plane))
 		return ERR_PTR(PTR_ERR(plane));
 
-	/* 
-	 * BVD Fix: Force FULL_RANGE. 
-	 * LIMITED_RANGE requires compression (0-255 -> 16-235), which triggers 
-	 * DCP's internal dithering/FRC to hide rounding artifacts.
-	 */
 	drm_plane_create_color_properties(&plane->base,
 					  (1 << DRM_COLOR_ENCODING_MAX) - 1,
 					  (1 << DRM_COLOR_RANGE_MAX) - 1,

@@ -152,7 +152,6 @@ struct DCP_FW_NAME(dcp_map_reg_resp) {
 	u32 ret;
 } __packed;
 
-
 struct apple_dcp;
 
 int DCP_FW_NAME(iomfb_modeset)(struct apple_dcp *dcp,
