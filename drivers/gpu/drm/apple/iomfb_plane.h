@@ -43,10 +43,15 @@ enum dcp_colorspace {
 };
 
 enum dcp_xfer_func {
-	DCP_XFER_FUNC_BT601 = 1,
-	DCP_XFER_FUNC_BT1886 = 2,
-	DCP_XFER_FUNC_SDR = 13,
-	DCP_XFER_FUNC_HDR = 16,
+    DCP_XFER_FUNC_LINEAR = 0,      /* Pass-through / Bypass */
+    DCP_XFER_FUNC_BT601  = 1,      /* Standard Definition (SD) */
+    DCP_XFER_FUNC_BT1886 = 2,      /* CRT-like Gamma (lighter shadows) */
+    DCP_XFER_FUNC_GAMMA_2_2 = 4,   /* Pure Power 2.2 */
+    DCP_XFER_FUNC_GAMMA_2_6 = 5,   /* DCI-P3 Gamma */
+    DCP_XFER_FUNC_SRGB   = 10,     /* Standard sRGB (linear segment + 2.4) */
+    DCP_XFER_FUNC_SDR    = 13,     /* Apple's default SDR (P3-D65) */
+    DCP_XFER_FUNC_HDR    = 16,     /* PQ / ST.2084 */
+    DCP_XFER_FUNC_HLG    = 17,     /* Hybrid Log-Gamma */
 };
 
 struct dcp_rect {

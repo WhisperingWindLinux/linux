@@ -173,36 +173,71 @@ static u32 drm_format_to_dcp(u32 drm, enum drm_color_range range)
 
 static enum dcp_xfer_func get_xfer_func(bool is_yuv, enum drm_color_encoding enc)
 {
-	if (!is_yuv)
-		return DCP_XFER_FUNC_SDR;
+    enum dcp_xfer_func ret;
 
-	switch (enc) {
-	case DRM_COLOR_YCBCR_BT601:
-		return DCP_XFER_FUNC_BT601;
-	case DRM_COLOR_YCBCR_BT709:
-	case DRM_COLOR_YCBCR_BT2020:
-		return DCP_XFER_FUNC_BT1886;
-	default:
-		return DCP_XFER_FUNC_SDR;
-	}
+    //printk(KERN_INFO "dcp: get_xfer_func: is_yuv=%d, enc=%d\n", is_yuv, enc);
+
+    if (!is_yuv) {
+        ret = DCP_XFER_FUNC_SDR;
+        //printk(KERN_INFO "dcp: get_xfer_func: -> DCP_XFER_FUNC_SDR (%d)\n", ret);
+        return ret;
+    }
+
+    switch (enc) {
+    case DRM_COLOR_YCBCR_BT601:
+        ret = DCP_XFER_FUNC_BT601;
+        break;
+    case DRM_COLOR_YCBCR_BT709:
+    case DRM_COLOR_YCBCR_BT2020:
+        ret = DCP_XFER_FUNC_BT1886;
+        break;
+    default:
+        ret = DCP_XFER_FUNC_SDR;
+        break;
+    }
+
+    //printk(KERN_INFO "dcp: get_xfer_func: -> %d\n", ret);
+    return ret;
 }
 
+/*
+	Since we are enforcing 8-bit mode, DCP_COLORSPACE_NATIVE is 
+	unsuitable as it causes oversaturation on the built-in display. 
+	We require DCP_COLORSPACE_BG_SRGB, which I am force-setting 
+	for all Mac-connected monitors.
+*/
 static enum dcp_colorspace get_colorspace(bool is_yuv,
-					  enum drm_color_encoding enc)
+                                          enum drm_color_encoding enc)
 {
-	if (!is_yuv)
-		return DCP_COLORSPACE_NATIVE;
+    enum dcp_colorspace ret;
 
-	switch (enc) {
-	case DRM_COLOR_YCBCR_BT601:
-		return DCP_COLORSPACE_BT601;
-	case DRM_COLOR_YCBCR_BT709:
-		return DCP_COLORSPACE_BT709;
-	case DRM_COLOR_YCBCR_BT2020:
-		return DCP_COLORSPACE_BG_BT2020;
-	default:
-		return DCP_COLORSPACE_NATIVE;
-	}
+    //printk(KERN_INFO "dcp: get_colorspace: is_yuv=%d, enc=%d\n", is_yuv, enc);
+
+    if (!is_yuv) {
+        // ret = DCP_COLORSPACE_NATIVE;
+		ret = DCP_COLORSPACE_BG_SRGB;
+        //printk(KERN_INFO "dcp: get_colorspace: -> DCP_COLORSPACE_BG_SRGB (%d)\n", ret);
+        return ret;
+    }
+
+    switch (enc) {
+    case DRM_COLOR_YCBCR_BT601:
+        ret = DCP_COLORSPACE_BT601;
+        break;
+    case DRM_COLOR_YCBCR_BT709:
+        ret = DCP_COLORSPACE_BT709;
+        break;
+    case DRM_COLOR_YCBCR_BT2020:
+        ret = DCP_COLORSPACE_BG_BT2020;
+        break;
+    default:
+        // ret = DCP_COLORSPACE_NATIVE;
+		ret = DCP_COLORSPACE_BG_SRGB;
+        break;
+    }
+
+    //printk(KERN_INFO "dcp: get_colorspace: -> %d\n", ret);
+    return ret;
 }
 
 static void apple_plane_atomic_update(struct drm_plane *plane,
@@ -476,14 +511,16 @@ struct drm_plane *apple_plane_init(struct drm_device *dev,
 	if (IS_ERR(plane))
 		return ERR_PTR(PTR_ERR(plane));
 
-	// You can set FULL RANGE here (replace LIMITED_RANGE with FULL_RANGE).
+	// To toggle the color range, you can manually replace 
+	// DRM_COLOR_YCBCR_LIMITED_RANGE with DRM_COLOR_YCBCR_FULL_RANGE, 
+	// and vice versa.
 	// Don't change DRM_COLOR_YCBCR_BT709 — it's the default encoding.
 
 	drm_plane_create_color_properties(&plane->base,
 					  (1 << DRM_COLOR_ENCODING_MAX) - 1,
 					  (1 << DRM_COLOR_RANGE_MAX) - 1,
 					  DRM_COLOR_YCBCR_BT709,
-					  DRM_COLOR_YCBCR_LIMITED_RANGE); // DRM_COLOR_YCBCR_FULL_RANGE
+					  DRM_COLOR_YCBCR_FULL_RANGE);
 
 	if (type == DRM_PLANE_TYPE_PRIMARY)
 		drm_plane_helper_add(&plane->base, &apple_primary_plane_helper_funcs);

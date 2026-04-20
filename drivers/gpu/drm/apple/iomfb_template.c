@@ -1394,9 +1394,17 @@ void DCP_FW_NAME(iomfb_flush)(struct apple_dcp *dcp, struct drm_crtc *crtc, stru
 		 * the contained colorimetry information to provide native
 		 * colors.
 		 */
-		if (dcp->connector_type == DRM_MODE_CONNECTOR_eDP &&
+		/*if (dcp->connector_type == DRM_MODE_CONNECTOR_eDP &&
 		    req->surf[l].base.colorspace == DCP_COLORSPACE_BG_SRGB)
-			req->surf[l].base.colorspace = DCP_COLORSPACE_NATIVE;
+			req->surf[l].base.colorspace = DCP_COLORSPACE_NATIVE;*/
+
+		/*
+		Since we are enforcing 8-bit mode, DCP_COLORSPACE_NATIVE is 
+		unsuitable as it causes oversaturation on the built-in display. 
+		We require DCP_COLORSPACE_BG_SRGB, which I am force-setting 
+		for all Mac-connected monitors.
+		*/
+		req->surf[l].base.colorspace = DCP_COLORSPACE_BG_SRGB;
 	}
 
 	if (!has_surface && !crtc_state->color_mgmt_changed) {

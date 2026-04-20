@@ -275,7 +275,8 @@ static int apple_probe_per_dcp(struct device *dev,
 	struct drm_plane *planes[DCP_MAX_PLANES];
 	int ret, i;
 	int immutable_zpos = 0;
-	bool supports_l10r = !dcp_fw_compat_is_12_x(dcp);
+	// Forcing 8-bit mode
+	bool supports_l10r = !dcp_fw_compat_is_12_x(dcp) && false;
 
 	planes[0] = apple_plane_init(drm, 1U << num, supports_l10r,
 				     DRM_PLANE_TYPE_PRIMARY);
