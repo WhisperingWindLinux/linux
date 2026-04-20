@@ -1091,6 +1091,17 @@ static int dcp_comp_bind(struct device *dev, struct device *main, void *data)
 	if (ret)
 		return dev_err_probe(dev, ret,
 				     "Failed to boot RTKit: %d\n", ret);
+	/* 
+	 * Force 8 bpc at the DRM connector level.
+ 	 * This will force the compositor (KWin) to use only 8-bit modes.
+ 	 */
+	if (!dcp_has_panel(dcp) && dcp->connector) {
+		struct drm_connector *connector = &dcp->connector->base;
+		connector->display_info.bpc = 8;
+		connector->display_info.color_formats = DRM_COLOR_FORMAT_RGB444;
+		dev_info(dev, "Forced 8 bpc on external connector\n");
+	}
+
 	return ret;
 }
 
