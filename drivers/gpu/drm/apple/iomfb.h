@@ -145,6 +145,7 @@ enum dcpep_method {
 	dcpep_set_digital_out_mode,
 	dcpep_create_default_fb,
 	dcpep_set_display_refresh_properties,
+	dcpep_apply_property,
 	dcpep_flush_supports_power,
 	dcpep_set_power_state,
 	dcpep_first_client_open,
@@ -389,6 +390,11 @@ struct dcpep_get_tiling_state_req {
 struct dcpep_get_tiling_state_resp {
 	u32 value;
 	u32 ret;
+} __packed;
+
+struct dcp_apply_property_req {
+    u32 prop_id;
+    u32 value;
 } __packed;
 
 #endif

@@ -95,6 +95,9 @@ DCP_THUNK_INOUT(dcp_enable_disable_video_power_savings,
 
 DCP_THUNK_OUT(dcp_is_main_display, dcpep_is_main_display, u32);
 
+DCP_THUNK_INOUT(dcp_apply_property, dcpep_apply_property,
+	struct dcp_apply_property_req, u32);
+
 /* DCP callback handlers */
 static void dcpep_cb_nop(struct apple_dcp *dcp)
 {
@@ -1179,6 +1182,18 @@ static void do_swap(struct apple_dcp *dcp, void *data, void *cookie)
 		dcp_drm_crtc_vblank(dcp->crtc);
 }
 
+static void apply_property_callback(struct apple_dcp *dcp, void *out, void *cookie) {
+	if (!out) {
+		dev_info(dcp->dev, "Dithering disable command completed with status: unknown (main_display=%d)\n",
+				 dcp->main_display);
+	} else {
+		int status = *(int *)out;
+		dev_info(dcp->dev, "Dithering disable command completed with status: %d (main_display=%d)\n",
+				 status, dcp->main_display);
+	}
+	do_swap(dcp, out, cookie);
+}
+
 static void complete_set_digital_out_mode(struct apple_dcp *dcp, void *data,
 					  void *cookie)
 {
@@ -1188,6 +1203,12 @@ static void complete_set_digital_out_mode(struct apple_dcp *dcp, void *data,
 		complete(&wait->done);
 		kref_put(&wait->refcount, release_wait_cookie);
 	}
+
+	struct dcp_apply_property_req req = {
+			.prop_id = 21, // iofmb_RuntimeProperty_enableDither
+			.value = 0     // 0 - disable, 1 - enable
+	};
+	dcp_apply_property(dcp, false, &req, apply_property_callback, NULL);
 }
 
 int DCP_FW_NAME(iomfb_modeset)(struct apple_dcp *dcp,

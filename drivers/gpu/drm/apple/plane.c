@@ -476,11 +476,14 @@ struct drm_plane *apple_plane_init(struct drm_device *dev,
 	if (IS_ERR(plane))
 		return ERR_PTR(PTR_ERR(plane));
 
+	// You can set FULL RANGE here (replace LIMITED_RANGE with FULL_RANGE).
+	// Don't change DRM_COLOR_YCBCR_BT709 — it's the default encoding.
+
 	drm_plane_create_color_properties(&plane->base,
 					  (1 << DRM_COLOR_ENCODING_MAX) - 1,
 					  (1 << DRM_COLOR_RANGE_MAX) - 1,
 					  DRM_COLOR_YCBCR_BT709,
-					  DRM_COLOR_YCBCR_LIMITED_RANGE);
+					  DRM_COLOR_YCBCR_LIMITED_RANGE); // DRM_COLOR_YCBCR_FULL_RANGE
 
 	if (type == DRM_PLANE_TYPE_PRIMARY)
 		drm_plane_helper_add(&plane->base, &apple_primary_plane_helper_funcs);
