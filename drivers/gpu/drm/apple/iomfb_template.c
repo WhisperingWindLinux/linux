@@ -98,6 +98,74 @@ DCP_THUNK_OUT(dcp_is_main_display, dcpep_is_main_display, u32);
 DCP_THUNK_INOUT(dcp_apply_property, dcpep_apply_property,
 	struct dcp_apply_property_req, u32);
 
+/*  BEGIN */
+
+struct dcp_property_batch {
+    struct apple_dcp *dcp;
+    struct dcp_apply_property_req *props;
+    int count;
+    int current;
+    void (*final_callback)(struct apple_dcp *dcp, int status, void *cookie);
+    void *cookie;
+};
+
+static void apply_next_property(struct dcp_property_batch *batch);
+
+static void property_batch_callback(struct apple_dcp *dcp, void *out, void *cookie)
+{
+    struct dcp_property_batch *batch = cookie;
+    int status = out ? *(int *)out : -1;
+
+    dev_info(dcp->dev, "Property %d/%d (id=%d, val=%d) completed: %d\n",
+             batch->current + 1, batch->count,
+             batch->props[batch->current].prop_id,
+             batch->props[batch->current].value,
+             status);
+
+    batch->current++;
+
+    if (batch->current < batch->count) {
+        apply_next_property(batch);
+    } else {
+        dev_info(dcp->dev, "All %d properties applied\n", batch->count);
+        if (batch->final_callback) {
+            batch->final_callback(dcp, 0, batch->cookie);
+        }
+        kfree(batch);
+    }
+}
+
+static void apply_next_property(struct dcp_property_batch *batch)
+{
+    dcp_apply_property(batch->dcp, false,
+                       &batch->props[batch->current],
+                       property_batch_callback, batch);
+}
+
+void dcp_apply_properties(struct apple_dcp *dcp,
+                          struct dcp_apply_property_req *props,
+                          int count,
+                          void (*callback)(struct apple_dcp *dcp, int status, void *cookie),
+                          void *cookie)
+{
+    struct dcp_property_batch *batch = kzalloc(sizeof(*batch), GFP_KERNEL);
+    if (!batch) {
+        dev_err(dcp->dev, "Failed to allocate batch\n");
+        if (callback) callback(dcp, -ENOMEM, cookie);
+        return;
+    }
+
+    batch->dcp = dcp;
+    batch->props = props;
+    batch->count = count;
+    batch->current = 0;
+    batch->final_callback = callback;
+    batch->cookie = cookie;
+
+    apply_next_property(batch);
+}
+/* END */
+
 /* DCP callback handlers */
 static void dcpep_cb_nop(struct apple_dcp *dcp)
 {
@@ -1182,16 +1250,12 @@ static void do_swap(struct apple_dcp *dcp, void *data, void *cookie)
 		dcp_drm_crtc_vblank(dcp->crtc);
 }
 
-static void apply_property_callback(struct apple_dcp *dcp, void *out, void *cookie) {
-	if (!out) {
-		dev_info(dcp->dev, "Dithering disable command completed with status: unknown (main_display=%d)\n",
-				 dcp->main_display);
-	} else {
-		int status = *(int *)out;
-		dev_info(dcp->dev, "Dithering disable command completed with status: %d (main_display=%d)\n",
-				 status, dcp->main_display);
-	}
-	do_swap(dcp, out, cookie);
+void on_properties_done(struct apple_dcp *dcp, int status, void *cookie)
+{    
+    if (status == 0) {
+        dev_info(dcp->dev, "All properties applied, now can swap\n");
+    }
+    do_swap(dcp, NULL, cookie);
 }
 
 static void complete_set_digital_out_mode(struct apple_dcp *dcp, void *data,
@@ -1204,11 +1268,17 @@ static void complete_set_digital_out_mode(struct apple_dcp *dcp, void *data,
 		kref_put(&wait->refcount, release_wait_cookie);
 	}
 
-	struct dcp_apply_property_req req = {
-			.prop_id = 21, // iofmb_RuntimeProperty_enableDither
-			.value = 0     // 0 - disable, 1 - enable
+	struct dcp_apply_property_req props[] = {
+	    { .prop_id = 0, .value = 0 },   // blendOutCSCMethod
+	    { .prop_id = 1, .value = 0 },   // CMDegammaMethod
+	    { .prop_id = 12, .value = 0 },  // enableGammaCorrection
+	    { .prop_id = 21, .value = 0 },  // enableDither
+	    { .prop_id = 22, .value = 0 },  // enableDarkEnhancer
+	    { .prop_id = 24, .value = 0 },  // enableWhitePointCorrection
+	    { .prop_id = 35, .value = 0 },  // enableGamutMapper
+	    { .prop_id = 61, .value = 1 }   // disableDisplayOptimize
 	};
-	dcp_apply_property(dcp, false, &req, apply_property_callback, NULL);
+	dcp_apply_properties(dcp, props, ARRAY_SIZE(props), final_callback, NULL);
 }
 
 int DCP_FW_NAME(iomfb_modeset)(struct apple_dcp *dcp,
