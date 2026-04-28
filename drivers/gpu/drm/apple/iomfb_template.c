@@ -100,70 +100,81 @@ DCP_THUNK_INOUT(dcp_apply_property, dcpep_apply_property,
 
 /*  BEGIN */
 
-struct dcp_property_batch {
+struct dcp_property_chain {
     struct apple_dcp *dcp;
     struct dcp_apply_property_req *props;
     int count;
-    int current;
+    int idx;
     void (*final_callback)(struct apple_dcp *dcp, int status, void *cookie);
     void *cookie;
 };
 
-static void apply_next_property(struct dcp_property_batch *batch);
+static void apply_next_in_chain(struct dcp_property_chain *chain);
 
-static void property_batch_callback(struct apple_dcp *dcp, void *out, void *cookie)
+static void chain_callback(struct apple_dcp *dcp, void *out, void *cookie)
 {
-    struct dcp_property_batch *batch = cookie;
+    struct dcp_property_chain *chain = cookie;
     int status = out ? *(int *)out : -1;
 
-    dev_info(dcp->dev, "Property %d/%d (id=%d, val=%d) completed: %d\n",
-             batch->current + 1, batch->count,
-             batch->props[batch->current].prop_id,
-             batch->props[batch->current].value,
-             status);
+    dev_info(dcp->dev, "Property %d/%d done: %d\n",
+             chain->idx + 1, chain->count, status);
 
-    batch->current++;
+    chain->idx++;
 
-    if (batch->current < batch->count) {
-        apply_next_property(batch);
+    if (chain->idx < chain->count) {
+        apply_next_in_chain(chain);
     } else {
-        dev_info(dcp->dev, "All %d properties applied\n", batch->count);
-        if (batch->final_callback) {
-            batch->final_callback(dcp, 0, batch->cookie);
+        dev_info(dcp->dev, "All %d properties applied\n", chain->count);
+        if (chain->final_callback) {
+            chain->final_callback(dcp, 0, chain->cookie);
         }
-        kfree(batch);
+        kfree(chain->props);  /* освобождаем копию массива */
+        kfree(chain);         /* освобождаем chain */
     }
 }
 
-static void apply_next_property(struct dcp_property_batch *batch)
+static void apply_next_in_chain(struct dcp_property_chain *chain)
 {
-    dcp_apply_property(batch->dcp, false,
-                       &batch->props[batch->current],
-                       property_batch_callback, batch);
+    struct dcp_apply_property_req req = chain->props[chain->idx];
+
+    dev_info(chain->dcp->dev, "Applying %d/%d: id=%u val=%u\n",
+             chain->idx + 1, chain->count, req.prop_id, req.value);
+
+    dcp_apply_property(chain->dcp, false, &req, chain_callback, chain);
 }
 
-void dcp_apply_properties(struct apple_dcp *dcp,
-                          struct dcp_apply_property_req *props,
-                          int count,
-                          void (*callback)(struct apple_dcp *dcp, int status, void *cookie),
-                          void *cookie)
+static void dcp_apply_properties(struct apple_dcp *dcp,
+                                  struct dcp_apply_property_req *props,
+                                  int count,
+                                  void (*callback)(struct apple_dcp *dcp, int status, void *cookie),
+                                  void *cookie)
 {
-    struct dcp_property_batch *batch = kzalloc(sizeof(*batch), GFP_KERNEL);
-    if (!batch) {
-        dev_err(dcp->dev, "Failed to allocate batch\n");
+    struct dcp_property_chain *chain = kzalloc(sizeof(*chain), GFP_KERNEL);
+    if (!chain) {
+        dev_err(dcp->dev, "Failed to allocate chain\n");
         if (callback) callback(dcp, -ENOMEM, cookie);
         return;
     }
 
-    batch->dcp = dcp;
-    batch->props = props;
-    batch->count = count;
-    batch->current = 0;
-    batch->final_callback = callback;
-    batch->cookie = cookie;
+    /* КОПИРУЕМ массив в кучу, чтобы он пережил завершение вызывающей функции */
+    chain->props = kmalloc(sizeof(*props) * count, GFP_KERNEL);
+    if (!chain->props) {
+        dev_err(dcp->dev, "Failed to allocate props copy\n");
+        kfree(chain);
+        if (callback) callback(dcp, -ENOMEM, cookie);
+        return;
+    }
+    memcpy(chain->props, props, sizeof(*props) * count);
 
-    apply_next_property(batch);
+    chain->dcp = dcp;
+    chain->count = count;
+    chain->idx = 0;
+    chain->final_callback = callback;
+    chain->cookie = cookie;
+
+    apply_next_in_chain(chain);
 }
+
 /* END */
 
 /* DCP callback handlers */
@@ -1250,7 +1261,7 @@ static void do_swap(struct apple_dcp *dcp, void *data, void *cookie)
 		dcp_drm_crtc_vblank(dcp->crtc);
 }
 
-void on_properties_done(struct apple_dcp *dcp, int status, void *cookie)
+static void on_properties_done(struct apple_dcp *dcp, int status, void *cookie)
 {    
     if (status == 0) {
         dev_info(dcp->dev, "All properties applied, now can swap\n");
@@ -1268,17 +1279,65 @@ static void complete_set_digital_out_mode(struct apple_dcp *dcp, void *data,
 		kref_put(&wait->refcount, release_wait_cookie);
 	}
 
-	struct dcp_apply_property_req props[] = {
-	    { .prop_id = 0, .value = 0 },   // blendOutCSCMethod
-	    { .prop_id = 1, .value = 0 },   // CMDegammaMethod
-	    { .prop_id = 12, .value = 0 },  // enableGammaCorrection
-	    { .prop_id = 21, .value = 0 },  // enableDither
-	    { .prop_id = 22, .value = 0 },  // enableDarkEnhancer
-	    { .prop_id = 24, .value = 0 },  // enableWhitePointCorrection
-	    { .prop_id = 35, .value = 0 },  // enableGamutMapper
-	    { .prop_id = 61, .value = 1 }   // disableDisplayOptimize
-	};
-	dcp_apply_properties(dcp, props, ARRAY_SIZE(props), final_callback, NULL);
+	if (dcp->main_display) {
+		struct dcp_apply_property_req props[] = {
+			/*
+			* === UNIVERSAL PROPERTIES (external + internal displays) ===
+			* These apply to any connected display type.
+			*/
+
+			/* Disable color space conversion and gamma processing */
+			{ .prop_id = 0, .value = 0 },   // BlendOutputCSCMethod — off
+			{ .prop_id = 1, .value = 0 },   // CMDegammaMethod — off
+
+			/*
+			* PRIMARY BVD TARGET: disable temporal dithering.
+			* Confirmed working on external monitors via HDMI recorder.
+			* ID=21 verified through DCP addProperty() registration analysis.
+			*/
+			{ .prop_id = 21, .value = 0 },  // enableDither — OFF
+
+			/*
+			* === INTERNAL DISPLAY ONLY ===
+			* DCP will return "property not found" for external monitors.
+			* This is safe — the errors are harmless and properties are skipped.
+			*/
+
+			/*
+			* Disable Content-Adaptive Backlight Control (CABC).
+			* When enabled (value=1), backlight "breathes" with image content,
+			* causing micro-fluctuations that trigger BVD symptoms.
+			* When disabled (value=0), backlight stays static like old monitors.
+			*/
+			{ .prop_id = 2, .value = 0 },   // requestPixelBacklightModulation — OFF
+			{ .prop_id = 3, .value = 0 },   // forcePixelBacklightModulation — OFF
+
+			/* Disable dynamic contrast/brightness adjustments */
+			{ .prop_id = 18, .value = 0 },  // IOMFBContrastEnhancerStrength — off
+			{ .prop_id = 19, .value = 0 },  // IOMFBBrightnessCompensationEnable — off
+			{ .prop_id = 20, .value = 0 },  // IOMFBTemperatureCompensationEnable — off
+
+			/* Disable color pipeline complexity */
+			// !! { .prop_id = 12, .value = 0 },  // enableGammaCorrection — off 
+			{ .prop_id = 34, .value = 0 },  // enableGamutMapper — off
+
+			/* Disable backlight LPF overriding — keep default static behavior */
+			// !! { .prop_id = 4, .value = 0 },   // overrideLPFControls — off
+			// !! { .prop_id = 7, .value = 0 },   // overrideDPBMaxSlopes — off
+
+			/* Disable power-saving display transitions (flicker on state change) */
+			// !!{ .prop_id = 44, .value = 0 },  // IOMFBWideGamutPassthrough — off
+			{ .prop_id = 67, .value = 0 },  // enablePowerGateDCS — off
+		};
+		dcp_apply_properties(dcp, props, ARRAY_SIZE(props), on_properties_done, NULL);
+	} else {
+		struct dcp_apply_property_req props[] = {
+        	{ .prop_id = 21, .value = 0 },  // enableDither
+			{ .prop_id = 0, .value = 0 },   // BlendOutputCSCMethod — off
+        	{ .prop_id = 1, .value = 0 },   // CMDegammaMethod — off
+		};
+		dcp_apply_properties(dcp, props, ARRAY_SIZE(props), on_properties_done, NULL);
+	}
 }
 
 int DCP_FW_NAME(iomfb_modeset)(struct apple_dcp *dcp,
