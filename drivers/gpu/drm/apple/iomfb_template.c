@@ -1276,60 +1276,47 @@ static void complete_set_digital_out_mode(struct apple_dcp *dcp, void *data,
 
 	if (dcp->main_display) {
 		struct dcp_apply_property_req props[] = {
-			/*
-			* === UNIVERSAL PROPERTIES (external + internal displays) ===
-			* These apply to any connected display type.
-			*/
-
-			/* Disable color space conversion and gamma processing */
+			/* Universal - simplify color pipeline */
 			{ .prop_id = 0, .value = 0 },   // BlendOutputCSCMethod — off
 			{ .prop_id = 1, .value = 0 },   // CMDegammaMethod — off
+			{ .prop_id = 21, .value = 0 },  // enableDither — OFF (BVD critical)
 
-			/*
-			* PRIMARY BVD TARGET: disable temporal dithering.
-			* Confirmed working on external monitors via HDMI recorder.
-			* ID=21 verified through DCP addProperty() registration analysis.
-			*/
-			{ .prop_id = 21, .value = 0 },  // enableDither — OFF
+			/* Internal-only - disable adaptive backlight modulation */
+			{ .prop_id = 2, .value = 0 },   // requestPixelBacklightModulation — off (CABC)
+			{ .prop_id = 3, .value = 0 },   // forcePixelBacklightModulation — off
 
-			/*
-			* === INTERNAL DISPLAY ONLY ===
-			* DCP will return "property not found" for external monitors.
-			* This is safe — the errors are harmless and properties are skipped.
-			*/
-
-			/*
-			* Disable Content-Adaptive Backlight Control (CABC).
-			* When enabled (value=1), backlight "breathes" with image content,
-			* causing micro-fluctuations that trigger BVD symptoms.
-			* When disabled (value=0), backlight stays static like old monitors.
-			*/
-			{ .prop_id = 2, .value = 0 },   // requestPixelBacklightModulation — OFF
-			{ .prop_id = 3, .value = 0 },   // forcePixelBacklightModulation — OFF
-
-			/* Disable dynamic contrast/brightness adjustments */
+			/* Internal-only - disable dynamic contrast/brightness adjustments */
 			{ .prop_id = 18, .value = 0 },  // IOMFBContrastEnhancerStrength — off
 			{ .prop_id = 19, .value = 0 },  // IOMFBBrightnessCompensationEnable — off
 			{ .prop_id = 20, .value = 0 },  // IOMFBTemperatureCompensationEnable — off
 
-			/* Disable color pipeline complexity */
-			// !! { .prop_id = 12, .value = 0 },  // enableGammaCorrection — off 
-			{ .prop_id = 34, .value = 0 },  // enableGamutMapper — off
+			/* Internal-only - backlight stability */
+			{ .prop_id = 116, .value = 0 }, // IOMFBTestBacklightDimValue — neutral
+			{ .prop_id = 117, .value = 0 }, // BLMVLEDManual — off
+			{ .prop_id = 118, .value = 0 }, // BLMAHOutputFreq — minimum
+			{ .prop_id = 119, .value = 0 }, // BLMAHMode — default
+			{ .prop_id = 120, .value = 0 }, // BLMPLimitCfg — no limit
+			{ .prop_id = 121, .value = 0 }, // enableBLMSloper — off (static backlight)
+			{ .prop_id = 122, .value = 0 }, // enableLAC — off (no local contrast)
 
-			/* Disable backlight LPF overriding — keep default static behavior */
-			// !! { .prop_id = 4, .value = 0 },   // overrideLPFControls — off
-			// !! { .prop_id = 7, .value = 0 },   // overrideDPBMaxSlopes — off
+			/* Internal-only - PCC power management */
+			{ .prop_id = 108, .value = 0 }, // PCCEnable — off (may reduce EMI)
+			{ .prop_id = 109, .value = 0 }, // PCC2DEnable — off
+			{ .prop_id = 107, .value = 0 }, // PCCTrinityEnable — off
 
-			/* Disable power-saving display transitions (flicker on state change) */
-			// !!{ .prop_id = 44, .value = 0 },  // IOMFBWideGamutPassthrough — off
-			{ .prop_id = 67, .value = 0 },  // enablePowerGateDCS — off
+			/* Internal-only - disable power-saving transitions (flicker source) */
+			{ .prop_id = 125, .value = 0 }, // DisableBConBoot — off
+			{ .prop_id = 149, .value = 0 }, // BLMAHOutputLogEnable — off
+			{ .prop_id = 150, .value = 0 }, // BLMAHStatsLogEnable — off
+			{ .prop_id = 151, .value = 0 }, // BLMStandbyEnable — off (no standby flicker)
 		};
 		dcp_apply_properties(dcp, props, ARRAY_SIZE(props), on_properties_done, NULL);
 	} else {
 		struct dcp_apply_property_req props[] = {
-        	{ .prop_id = 21, .value = 0 },  // enableDither - off
+			/* Universal - simplify color pipeline */
 			{ .prop_id = 0, .value = 0 },   // BlendOutputCSCMethod — off
-        	{ .prop_id = 1, .value = 0 },   // CMDegammaMethod — off
+			{ .prop_id = 1, .value = 0 },   // CMDegammaMethod — off
+			{ .prop_id = 21, .value = 0 },  // enableDither — OFF (BVD critical)
 		};
 		dcp_apply_properties(dcp, props, ARRAY_SIZE(props), on_properties_done, NULL);
 	}
