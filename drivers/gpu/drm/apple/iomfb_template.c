@@ -98,8 +98,6 @@ DCP_THUNK_OUT(dcp_is_main_display, dcpep_is_main_display, u32);
 DCP_THUNK_INOUT(dcp_apply_property, dcpep_apply_property,
 	struct dcp_apply_property_req, u32);
 
-/*  BEGIN */
-
 struct dcp_property_chain {
     struct apple_dcp *dcp;
     struct dcp_apply_property_req *props;
@@ -128,8 +126,8 @@ static void chain_callback(struct apple_dcp *dcp, void *out, void *cookie)
         if (chain->final_callback) {
             chain->final_callback(dcp, 0, chain->cookie);
         }
-        kfree(chain->props);  /* освобождаем копию массива */
-        kfree(chain);         /* освобождаем chain */
+        kfree(chain->props); 
+        kfree(chain);  
     }
 }
 
@@ -156,7 +154,6 @@ static void dcp_apply_properties(struct apple_dcp *dcp,
         return;
     }
 
-    /* КОПИРУЕМ массив в кучу, чтобы он пережил завершение вызывающей функции */
     chain->props = kmalloc(sizeof(*props) * count, GFP_KERNEL);
     if (!chain->props) {
         dev_err(dcp->dev, "Failed to allocate props copy\n");
@@ -174,8 +171,6 @@ static void dcp_apply_properties(struct apple_dcp *dcp,
 
     apply_next_in_chain(chain);
 }
-
-/* END */
 
 /* DCP callback handlers */
 static void dcpep_cb_nop(struct apple_dcp *dcp)
@@ -1332,7 +1327,7 @@ static void complete_set_digital_out_mode(struct apple_dcp *dcp, void *data,
 		dcp_apply_properties(dcp, props, ARRAY_SIZE(props), on_properties_done, NULL);
 	} else {
 		struct dcp_apply_property_req props[] = {
-        	{ .prop_id = 21, .value = 0 },  // enableDither
+        	{ .prop_id = 21, .value = 0 },  // enableDither - off
 			{ .prop_id = 0, .value = 0 },   // BlendOutputCSCMethod — off
         	{ .prop_id = 1, .value = 0 },   // CMDegammaMethod — off
 		};
