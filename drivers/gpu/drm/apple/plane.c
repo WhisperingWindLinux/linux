@@ -215,8 +215,8 @@ static enum dcp_colorspace get_colorspace(bool is_yuv,
 
     if (!is_yuv) {
         // ret = DCP_COLORSPACE_NATIVE;
-		ret = DCP_COLORSPACE_BG_SRGB;
-        //printk(KERN_INFO "dcp: get_colorspace: -> DCP_COLORSPACE_BG_SRGB (%d)\n", ret);
+		ret = DCP_COLORSPACE_SRGB;
+        //printk(KERN_INFO "dcp: get_colorspace: -> DCP_COLORSPACE_SRGB (%d)\n", ret);
         return ret;
     }
 
@@ -232,7 +232,7 @@ static enum dcp_colorspace get_colorspace(bool is_yuv,
         break;
     default:
         // ret = DCP_COLORSPACE_NATIVE;
-		ret = DCP_COLORSPACE_BG_SRGB;
+		ret = DCP_COLORSPACE_SRGB;
         break;
     }
 

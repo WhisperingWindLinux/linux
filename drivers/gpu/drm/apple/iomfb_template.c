@@ -1276,40 +1276,36 @@ static void complete_set_digital_out_mode(struct apple_dcp *dcp, void *data,
 
 	if (dcp->main_display) {
 		struct dcp_apply_property_req props[] = {
-			/* Universal - simplify color pipeline */
+				/* Color pipeline */
 			{ .prop_id = 0, .value = 0 },   // BlendOutputCSCMethod — off
 			{ .prop_id = 1, .value = 0 },   // CMDegammaMethod — off
-			{ .prop_id = 21, .value = 0 },  // enableDither — OFF (BVD critical)
+			{ .prop_id = 21, .value = 0 },  // enableDither — OFF
 
-			/* Internal-only - disable adaptive backlight modulation */
-			{ .prop_id = 2, .value = 0 },   // requestPixelBacklightModulation — off (CABC)
-			{ .prop_id = 3, .value = 0 },   // forcePixelBacklightModulation — off
+			/* Adaptive backlight modulation (CABC) */
+			{ .prop_id = 2, .value = 0 },   // requestPixelBacklightModulation
+			{ .prop_id = 3, .value = 0 },   // forcePixelBacklightModulation
 
-			/* Internal-only - disable dynamic contrast/brightness adjustments */
-			{ .prop_id = 18, .value = 0 },  // IOMFBContrastEnhancerStrength — off
-			{ .prop_id = 19, .value = 0 },  // IOMFBBrightnessCompensationEnable — off
-			{ .prop_id = 20, .value = 0 },  // IOMFBTemperatureCompensationEnable — off
+			/* Dynamic contrast/brightness */
+			{ .prop_id = 18, .value = 0 },  // IOMFBContrastEnhancerStrength
+			{ .prop_id = 19, .value = 0 },  // IOMFBBrightnessCompensationEnable
+			{ .prop_id = 20, .value = 0 },  // IOMFBTemperatureCompensationEnable
 
-			/* Internal-only - backlight stability */
-			{ .prop_id = 116, .value = 0 }, // IOMFBTestBacklightDimValue — neutral
-			{ .prop_id = 117, .value = 0 }, // BLMVLEDManual — off
-			{ .prop_id = 118, .value = 0 }, // BLMAHOutputFreq — minimum
-			{ .prop_id = 119, .value = 0 }, // BLMAHMode — default
-			{ .prop_id = 120, .value = 0 }, // BLMPLimitCfg — no limit
-			{ .prop_id = 121, .value = 0 }, // enableBLMSloper — off (static backlight)
-			{ .prop_id = 122, .value = 0 }, // enableLAC — off (no local contrast)
+			/* Backlight — keep static, no smoothing */
+			{ .prop_id = 121, .value = 0 }, // enableBLMSloper — off
+			{ .prop_id = 122, .value = 0 }, // enableLAC — off
 
-			/* Internal-only - PCC power management */
-			{ .prop_id = 108, .value = 0 }, // PCCEnable — off (may reduce EMI)
-			{ .prop_id = 109, .value = 0 }, // PCC2DEnable — off
-			{ .prop_id = 107, .value = 0 }, // PCCTrinityEnable — off
+			/* PCC power management — may reduce EMI */
+			{ .prop_id = 107, .value = 0 }, // PCCTrinityEnable
+			{ .prop_id = 108, .value = 0 }, // PCCEnable
+			{ .prop_id = 109, .value = 0 }, // PCC2DEnable
 
-			/* Internal-only - disable power-saving transitions (flicker source) */
-			{ .prop_id = 125, .value = 0 }, // DisableBConBoot — off
-			{ .prop_id = 149, .value = 0 }, // BLMAHOutputLogEnable — off
-			{ .prop_id = 150, .value = 0 }, // BLMAHStatsLogEnable — off
-			{ .prop_id = 151, .value = 0 }, // BLMStandbyEnable — off (no standby flicker)
-		};
+			/* Power-saving transitions — flicker source */
+			{ .prop_id = 151, .value = 0 }, // BLMStandbyEnable — off
+
+			/* Display optimizations */
+			{ .prop_id = 61, .value = 1 },  // DisableDisplayOptimization
+			{ .prop_id = 89, .value = 0 },  // EnableNormalMode — off
+    	};
 		dcp_apply_properties(dcp, props, ARRAY_SIZE(props), on_properties_done, NULL);
 	} else {
 		struct dcp_apply_property_req props[] = {
@@ -1317,6 +1313,10 @@ static void complete_set_digital_out_mode(struct apple_dcp *dcp, void *data,
 			{ .prop_id = 0, .value = 0 },   // BlendOutputCSCMethod — off
 			{ .prop_id = 1, .value = 0 },   // CMDegammaMethod — off
 			{ .prop_id = 21, .value = 0 },  // enableDither — OFF (BVD critical)
+
+			{ .prop_id = 61, .value = 1 },  // DisableDisplayOptimization
+			{ .prop_id = 89, .value = 0 },  // EnableNormalMode
+
 		};
 		dcp_apply_properties(dcp, props, ARRAY_SIZE(props), on_properties_done, NULL);
 	}
@@ -1512,10 +1512,10 @@ void DCP_FW_NAME(iomfb_flush)(struct apple_dcp *dcp, struct drm_crtc *crtc, stru
 		/*
 		Since we are enforcing 8-bit mode, DCP_COLORSPACE_NATIVE is 
 		unsuitable as it causes oversaturation on the built-in display. 
-		We require DCP_COLORSPACE_BG_SRGB, which I am force-setting 
+		We require DCP_COLORSPACE_SRGB, which I am force-setting 
 		for all Mac-connected monitors.
 		*/
-		req->surf[l].base.colorspace = DCP_COLORSPACE_BG_SRGB;
+		req->surf[l].base.colorspace = DCP_COLORSPACE_SRGB;
 	}
 
 	if (!has_surface && !crtc_state->color_mgmt_changed) {
