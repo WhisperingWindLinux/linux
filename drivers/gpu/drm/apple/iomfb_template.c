@@ -98,6 +98,80 @@ DCP_THUNK_OUT(dcp_is_main_display, dcpep_is_main_display, u32);
 DCP_THUNK_INOUT(dcp_apply_property, dcpep_apply_property,
 	struct dcp_apply_property_req, u32);
 
+struct dcp_property_chain {
+    struct apple_dcp *dcp;
+    struct dcp_apply_property_req *props;
+    int count;
+    int idx;
+    void (*final_callback)(struct apple_dcp *dcp, int status, void *cookie);
+    void *cookie;
+};
+
+static void apply_next_in_chain(struct dcp_property_chain *chain);
+
+static void chain_callback(struct apple_dcp *dcp, void *out, void *cookie)
+{
+    struct dcp_property_chain *chain = cookie;
+    int status = out ? *(int *)out : -1;
+
+    dev_info(dcp->dev, "Property %d/%d done: %d\n",
+             chain->idx + 1, chain->count, status);
+
+    chain->idx++;
+
+    if (chain->idx < chain->count) {
+        apply_next_in_chain(chain);
+    } else {
+        dev_info(dcp->dev, "All %d properties applied\n", chain->count);
+        if (chain->final_callback) {
+            chain->final_callback(dcp, 0, chain->cookie);
+        }
+        kfree(chain->props); 
+        kfree(chain);  
+    }
+}
+
+static void apply_next_in_chain(struct dcp_property_chain *chain)
+{
+    struct dcp_apply_property_req req = chain->props[chain->idx];
+
+    dev_info(chain->dcp->dev, "Applying %d/%d: id=%u val=%u\n",
+             chain->idx + 1, chain->count, req.prop_id, req.value);
+
+    dcp_apply_property(chain->dcp, false, &req, chain_callback, chain);
+}
+
+static void dcp_apply_properties(struct apple_dcp *dcp,
+                                  struct dcp_apply_property_req *props,
+                                  int count,
+                                  void (*callback)(struct apple_dcp *dcp, int status, void *cookie),
+                                  void *cookie)
+{
+    struct dcp_property_chain *chain = kzalloc(sizeof(*chain), GFP_KERNEL);
+    if (!chain) {
+        dev_err(dcp->dev, "Failed to allocate chain\n");
+        if (callback) callback(dcp, -ENOMEM, cookie);
+        return;
+    }
+
+    chain->props = kmalloc(sizeof(*props) * count, GFP_KERNEL);
+    if (!chain->props) {
+        dev_err(dcp->dev, "Failed to allocate props copy\n");
+        kfree(chain);
+        if (callback) callback(dcp, -ENOMEM, cookie);
+        return;
+    }
+    memcpy(chain->props, props, sizeof(*props) * count);
+
+    chain->dcp = dcp;
+    chain->count = count;
+    chain->idx = 0;
+    chain->final_callback = callback;
+    chain->cookie = cookie;
+
+    apply_next_in_chain(chain);
+}
+
 /* DCP callback handlers */
 static void dcpep_cb_nop(struct apple_dcp *dcp)
 {
@@ -1182,16 +1256,12 @@ static void do_swap(struct apple_dcp *dcp, void *data, void *cookie)
 		dcp_drm_crtc_vblank(dcp->crtc);
 }
 
-static void apply_property_callback(struct apple_dcp *dcp, void *out, void *cookie) {
-	if (!out) {
-		dev_info(dcp->dev, "Dithering disable command completed with status: unknown (main_display=%d)\n",
-				 dcp->main_display);
-	} else {
-		int status = *(int *)out;
-		dev_info(dcp->dev, "Dithering disable command completed with status: %d (main_display=%d)\n",
-				 status, dcp->main_display);
-	}
-	do_swap(dcp, out, cookie);
+static void on_properties_done(struct apple_dcp *dcp, int status, void *cookie)
+{    
+    if (status == 0) {
+        dev_info(dcp->dev, "All properties applied, now can swap\n");
+    }
+    do_swap(dcp, NULL, cookie);
 }
 
 static void complete_set_digital_out_mode(struct apple_dcp *dcp, void *data,
@@ -1204,11 +1274,52 @@ static void complete_set_digital_out_mode(struct apple_dcp *dcp, void *data,
 		kref_put(&wait->refcount, release_wait_cookie);
 	}
 
-	struct dcp_apply_property_req req = {
-			.prop_id = 21, // iofmb_RuntimeProperty_enableDither
-			.value = 0     // 0 - disable, 1 - enable
-	};
-	dcp_apply_property(dcp, false, &req, apply_property_callback, NULL);
+	if (dcp->main_display) {
+		struct dcp_apply_property_req props[] = {
+				/* Color pipeline */
+			{ .prop_id = 0, .value = 0 },   // BlendOutputCSCMethod — off
+			{ .prop_id = 1, .value = 0 },   // CMDegammaMethod — off
+			{ .prop_id = 21, .value = 0 },  // enableDither — OFF
+
+			/* Adaptive backlight modulation (CABC) */
+			{ .prop_id = 2, .value = 0 },   // requestPixelBacklightModulation
+			{ .prop_id = 3, .value = 0 },   // forcePixelBacklightModulation
+
+			/* Dynamic contrast/brightness */
+			{ .prop_id = 18, .value = 0 },  // IOMFBContrastEnhancerStrength
+			{ .prop_id = 19, .value = 0 },  // IOMFBBrightnessCompensationEnable
+			{ .prop_id = 20, .value = 0 },  // IOMFBTemperatureCompensationEnable
+
+			/* Backlight — keep static, no smoothing */
+			{ .prop_id = 121, .value = 0 }, // enableBLMSloper — off
+			{ .prop_id = 122, .value = 0 }, // enableLAC — off
+
+			/* PCC power management — may reduce EMI */
+			{ .prop_id = 107, .value = 0 }, // PCCTrinityEnable
+			{ .prop_id = 108, .value = 0 }, // PCCEnable
+			{ .prop_id = 109, .value = 0 }, // PCC2DEnable
+
+			/* Power-saving transitions — flicker source */
+			{ .prop_id = 151, .value = 0 }, // BLMStandbyEnable — off
+
+			/* Display optimizations */
+			{ .prop_id = 61, .value = 1 },  // DisableDisplayOptimization
+			{ .prop_id = 89, .value = 0 },  // EnableNormalMode — off
+    	};
+		dcp_apply_properties(dcp, props, ARRAY_SIZE(props), on_properties_done, NULL);
+	} else {
+		struct dcp_apply_property_req props[] = {
+			/* Universal - simplify color pipeline */
+			{ .prop_id = 0, .value = 0 },   // BlendOutputCSCMethod — off
+			{ .prop_id = 1, .value = 0 },   // CMDegammaMethod — off
+			{ .prop_id = 21, .value = 0 },  // enableDither — OFF (BVD critical)
+
+			{ .prop_id = 61, .value = 1 },  // DisableDisplayOptimization
+			{ .prop_id = 89, .value = 0 },  // EnableNormalMode
+
+		};
+		dcp_apply_properties(dcp, props, ARRAY_SIZE(props), on_properties_done, NULL);
+	}
 }
 
 int DCP_FW_NAME(iomfb_modeset)(struct apple_dcp *dcp,
@@ -1401,10 +1512,10 @@ void DCP_FW_NAME(iomfb_flush)(struct apple_dcp *dcp, struct drm_crtc *crtc, stru
 		/*
 		Since we are enforcing 8-bit mode, DCP_COLORSPACE_NATIVE is 
 		unsuitable as it causes oversaturation on the built-in display. 
-		We require DCP_COLORSPACE_BG_SRGB, which I am force-setting 
+		We require DCP_COLORSPACE_SRGB, which I am force-setting 
 		for all Mac-connected monitors.
 		*/
-		req->surf[l].base.colorspace = DCP_COLORSPACE_BG_SRGB;
+		req->surf[l].base.colorspace = DCP_COLORSPACE_SRGB;
 	}
 
 	if (!has_surface && !crtc_state->color_mgmt_changed) {
