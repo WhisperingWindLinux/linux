@@ -175,11 +175,8 @@ static enum dcp_xfer_func get_xfer_func(bool is_yuv, enum drm_color_encoding enc
 {
     enum dcp_xfer_func ret;
 
-    //printk(KERN_INFO "dcp: get_xfer_func: is_yuv=%d, enc=%d\n", is_yuv, enc);
-
     if (!is_yuv) {
         ret = DCP_XFER_FUNC_SDR;
-        //printk(KERN_INFO "dcp: get_xfer_func: -> DCP_XFER_FUNC_SDR (%d)\n", ret);
         return ret;
     }
 
@@ -196,27 +193,16 @@ static enum dcp_xfer_func get_xfer_func(bool is_yuv, enum drm_color_encoding enc
         break;
     }
 
-    //printk(KERN_INFO "dcp: get_xfer_func: -> %d\n", ret);
     return ret;
 }
 
-/*
-	Since we are enforcing 8-bit mode, DCP_COLORSPACE_NATIVE is 
-	unsuitable as it causes oversaturation on the built-in display. 
-	We require DCP_COLORSPACE_BG_SRGB, which I am force-setting 
-	for all Mac-connected monitors.
-*/
 static enum dcp_colorspace get_colorspace(bool is_yuv,
                                           enum drm_color_encoding enc)
 {
     enum dcp_colorspace ret;
 
-    //printk(KERN_INFO "dcp: get_colorspace: is_yuv=%d, enc=%d\n", is_yuv, enc);
-
     if (!is_yuv) {
-        // ret = DCP_COLORSPACE_NATIVE;
-		ret = DCP_COLORSPACE_SRGB;
-        //printk(KERN_INFO "dcp: get_colorspace: -> DCP_COLORSPACE_SRGB (%d)\n", ret);
+		ret = DCP_COLORSPACE_BG_SRGB;
         return ret;
     }
 
@@ -231,12 +217,10 @@ static enum dcp_colorspace get_colorspace(bool is_yuv,
         ret = DCP_COLORSPACE_BG_BT2020;
         break;
     default:
-        // ret = DCP_COLORSPACE_NATIVE;
-		ret = DCP_COLORSPACE_SRGB;
+		ret = DCP_COLORSPACE_BG_SRGB;
         break;
     }
 
-    //printk(KERN_INFO "dcp: get_colorspace: -> %d\n", ret);
     return ret;
 }
 

@@ -1274,48 +1274,35 @@ static void complete_set_digital_out_mode(struct apple_dcp *dcp, void *data,
 		kref_put(&wait->refcount, release_wait_cookie);
 	}
 
+	if (dcp->dcp_poperties_applied) {
+		return;
+	}
+	dcp->dcp_poperties_applied = true;
+
 	if (dcp->main_display) {
 		struct dcp_apply_property_req props[] = {
-				/* Color pipeline */
 			{ .prop_id = 0, .value = 0 },   // BlendOutputCSCMethod — off
 			{ .prop_id = 1, .value = 0 },   // CMDegammaMethod — off
-			{ .prop_id = 21, .value = 0 },  // enableDither — OFF
+			{ .prop_id = 21, .value = 0 },  // enableDither — off
+			{ .prop_id = 28, .value = 0 },  // uniformity2D — off
 
-			/* Adaptive backlight modulation (CABC) */
-			{ .prop_id = 2, .value = 0 },   // requestPixelBacklightModulation
-			{ .prop_id = 3, .value = 0 },   // forcePixelBacklightModulation
+			{ .prop_id = 18, .value = 0 },  // IOMFBContrastEnhancerStrength - off
+			{ .prop_id = 19, .value = 0 },  // IOMFBBrightnessCompensationEnable - off
+			{ .prop_id = 20, .value = 0 },  // IOMFBTemperatureCompensationEnable - off
 
-			/* Dynamic contrast/brightness */
-			{ .prop_id = 18, .value = 0 },  // IOMFBContrastEnhancerStrength
-			{ .prop_id = 19, .value = 0 },  // IOMFBBrightnessCompensationEnable
-			{ .prop_id = 20, .value = 0 },  // IOMFBTemperatureCompensationEnable
-
-			/* Backlight — keep static, no smoothing */
-			{ .prop_id = 121, .value = 0 }, // enableBLMSloper — off
-			{ .prop_id = 122, .value = 0 }, // enableLAC — off
-
-			/* PCC power management — may reduce EMI */
-			{ .prop_id = 107, .value = 0 }, // PCCTrinityEnable
-			{ .prop_id = 108, .value = 0 }, // PCCEnable
-			{ .prop_id = 109, .value = 0 }, // PCC2DEnable
-
-			/* Power-saving transitions — flicker source */
-			{ .prop_id = 151, .value = 0 }, // BLMStandbyEnable — off
-
-			/* Display optimizations */
-			{ .prop_id = 61, .value = 1 },  // DisableDisplayOptimization
-			{ .prop_id = 89, .value = 0 },  // EnableNormalMode — off
+			//{ .prop_id = 61, .value = 0 },  // DisableDisplayOptimization
+			//{ .prop_id = 89, .value = 0 },  // EnableNormalMode — off
+			{ .prop_id = 22, .value = 0 },  // darkEnhancer - off
     	};
 		dcp_apply_properties(dcp, props, ARRAY_SIZE(props), on_properties_done, NULL);
 	} else {
 		struct dcp_apply_property_req props[] = {
-			/* Universal - simplify color pipeline */
 			{ .prop_id = 0, .value = 0 },   // BlendOutputCSCMethod — off
 			{ .prop_id = 1, .value = 0 },   // CMDegammaMethod — off
-			{ .prop_id = 21, .value = 0 },  // enableDither — OFF (BVD critical)
+			{ .prop_id = 21, .value = 0 },  // enableDither — OFF
 
-			{ .prop_id = 61, .value = 1 },  // DisableDisplayOptimization
-			{ .prop_id = 89, .value = 0 },  // EnableNormalMode
+			{ .prop_id = 61, .value = 0 },  // DisableDisplayOptimization - off
+			{ .prop_id = 89, .value = 0 },  // EnableNormalMode - off
 
 		};
 		dcp_apply_properties(dcp, props, ARRAY_SIZE(props), on_properties_done, NULL);
@@ -1329,6 +1316,33 @@ int DCP_FW_NAME(iomfb_modeset)(struct apple_dcp *dcp,
 	struct dcp_wait_cookie *cookie;
 	struct dcp_color_mode *cmode = NULL;
 	int ret;
+
+
+	/*dev_info(dcp->dev, "=== All %d modes from DCP ===\n", dcp->nr_modes);
+	for (int i = 0; i < dcp->nr_modes; i++) {
+		struct dcp_display_mode *m = &dcp->modes[i];
+		
+		dev_info(dcp->dev, "[%d] %dx%d@%dHz timing=%d\n",
+			i, m->mode.hdisplay, m->mode.vdisplay,
+			drm_mode_vrefresh(&m->mode), m->timing_mode_id);
+		
+		if (m->sdr_rgb.id)
+			dev_info(dcp->dev, "    sdr_rgb:  color_id=%d depth=%hhu fmt=%u col=%u eotf=%u range=%u\n",
+				m->sdr_rgb.id, m->sdr_rgb.depth, m->sdr_rgb.format,
+				m->sdr_rgb.colorimetry, m->sdr_rgb.eotf, m->sdr_rgb.range);
+		if (m->sdr_444.id)
+			dev_info(dcp->dev, "    sdr_444:  color_id=%d depth=%hhu fmt=%u col=%u eotf=%u range=%u\n",
+				m->sdr_444.id, m->sdr_444.depth, m->sdr_444.format,
+				m->sdr_444.colorimetry, m->sdr_444.eotf, m->sdr_444.range);
+		if (m->sdr.id)
+			dev_info(dcp->dev, "    sdr:      color_id=%d depth=%hhu fmt=%u col=%u eotf=%u range=%u\n",
+				m->sdr.id, m->sdr.depth, m->sdr.format,
+				m->sdr.colorimetry, m->sdr.eotf, m->sdr.range);
+		if (m->best.id)
+			dev_info(dcp->dev, "    best:     color_id=%d depth=%hhu fmt=%u col=%u eotf=%u range=%u\n",
+				m->best.id, m->best.depth, m->best.format,
+				m->best.colorimetry, m->best.eotf, m->best.range);
+	}*/
 
 	mode = lookup_mode(dcp, &crtc_state->mode);
 	if (!mode) {
@@ -1509,13 +1523,7 @@ void DCP_FW_NAME(iomfb_flush)(struct apple_dcp *dcp, struct drm_crtc *crtc, stru
 		    req->surf[l].base.colorspace == DCP_COLORSPACE_BG_SRGB)
 			req->surf[l].base.colorspace = DCP_COLORSPACE_NATIVE;*/
 
-		/*
-		Since we are enforcing 8-bit mode, DCP_COLORSPACE_NATIVE is 
-		unsuitable as it causes oversaturation on the built-in display. 
-		We require DCP_COLORSPACE_SRGB, which I am force-setting 
-		for all Mac-connected monitors.
-		*/
-		req->surf[l].base.colorspace = DCP_COLORSPACE_SRGB;
+		req->surf[l].base.colorspace = DCP_COLORSPACE_BG_SRGB;
 	}
 
 	if (!has_surface && !crtc_state->color_mgmt_changed) {
