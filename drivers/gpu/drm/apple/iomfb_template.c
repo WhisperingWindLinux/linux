@@ -1289,7 +1289,7 @@ static void complete_set_digital_out_mode(struct apple_dcp *dcp, void *data,
 			{ .prop_id = 20, .value = 0 },  // IOMFBTemperatureCompensationEnable
 			{ .prop_id = 21, .value = 0 },  // enableDither 
 			{ .prop_id = 22, .value = 0 },  // darkEnhancer
-			{ .prop_id = 61, .value = 0 },  // DisableDisplayOptimization
+			{ .prop_id = 61, .value = 1 },  // DisableDisplayOptimization
 			{ .prop_id = 89, .value = 0 },  // EnableNormalMode
     	};
 		dcp_apply_properties(dcp, props, ARRAY_SIZE(props), on_properties_done, NULL);
@@ -1298,7 +1298,7 @@ static void complete_set_digital_out_mode(struct apple_dcp *dcp, void *data,
 			{ .prop_id = 0, .value = 0 },   // BlendOutputCSCMethod
 			{ .prop_id = 1, .value = 0 },   // CMDegammaMethod
 			{ .prop_id = 21, .value = 0 },  // enableDither
-			{ .prop_id = 61, .value = 0 },  // DisableDisplayOptimization
+			{ .prop_id = 61, .value = 1 },  // DisableDisplayOptimization
 			{ .prop_id = 89, .value = 0 },  // EnableNormalMode
 
 		};
