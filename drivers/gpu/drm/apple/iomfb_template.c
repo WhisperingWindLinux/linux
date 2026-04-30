@@ -1281,28 +1281,25 @@ static void complete_set_digital_out_mode(struct apple_dcp *dcp, void *data,
 
 	if (dcp->main_display) {
 		struct dcp_apply_property_req props[] = {
-			{ .prop_id = 0, .value = 0 },   // BlendOutputCSCMethod — off
-			{ .prop_id = 1, .value = 0 },   // CMDegammaMethod — off
-			{ .prop_id = 21, .value = 0 },  // enableDither — off
-			{ .prop_id = 28, .value = 0 },  // uniformity2D — off
-
-			{ .prop_id = 18, .value = 0 },  // IOMFBContrastEnhancerStrength - off
-			{ .prop_id = 19, .value = 0 },  // IOMFBBrightnessCompensationEnable - off
-			{ .prop_id = 20, .value = 0 },  // IOMFBTemperatureCompensationEnable - off
-
-			//{ .prop_id = 61, .value = 0 },  // DisableDisplayOptimization
-			//{ .prop_id = 89, .value = 0 },  // EnableNormalMode — off
-			{ .prop_id = 22, .value = 0 },  // darkEnhancer - off
+			{ .prop_id = 0, .value = 0 },   // BlendOutputCSCMethod 
+			{ .prop_id = 1, .value = 0 },   // CMDegammaMethod
+			{ .prop_id = 28, .value = 0 },  // uniformity2D
+			{ .prop_id = 18, .value = 0 },  // IOMFBContrastEnhancerStrength
+			{ .prop_id = 19, .value = 0 },  // IOMFBBrightnessCompensationEnable
+			{ .prop_id = 20, .value = 0 },  // IOMFBTemperatureCompensationEnable
+			{ .prop_id = 21, .value = 0 },  // enableDither 
+			{ .prop_id = 22, .value = 0 },  // darkEnhancer
+			{ .prop_id = 61, .value = 0 },  // DisableDisplayOptimization
+			{ .prop_id = 89, .value = 0 },  // EnableNormalMode
     	};
 		dcp_apply_properties(dcp, props, ARRAY_SIZE(props), on_properties_done, NULL);
 	} else {
 		struct dcp_apply_property_req props[] = {
-			{ .prop_id = 0, .value = 0 },   // BlendOutputCSCMethod — off
-			{ .prop_id = 1, .value = 0 },   // CMDegammaMethod — off
-			{ .prop_id = 21, .value = 0 },  // enableDither — OFF
-
-			{ .prop_id = 61, .value = 0 },  // DisableDisplayOptimization - off
-			{ .prop_id = 89, .value = 0 },  // EnableNormalMode - off
+			{ .prop_id = 0, .value = 0 },   // BlendOutputCSCMethod
+			{ .prop_id = 1, .value = 0 },   // CMDegammaMethod
+			{ .prop_id = 21, .value = 0 },  // enableDither
+			{ .prop_id = 61, .value = 0 },  // DisableDisplayOptimization
+			{ .prop_id = 89, .value = 0 },  // EnableNormalMode
 
 		};
 		dcp_apply_properties(dcp, props, ARRAY_SIZE(props), on_properties_done, NULL);
